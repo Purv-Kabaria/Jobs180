@@ -1,0 +1,19 @@
+spring:
+  thymeleaf:
+    cache: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: true
+        same-site: lax
+        http-only: true
+
+management:
+  endpoint:
+    health:
+      show-details: never
