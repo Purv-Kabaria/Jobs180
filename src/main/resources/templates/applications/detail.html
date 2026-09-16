@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${app.title}">Application</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <section class="panel">
+        <h1 th:text="${app.title}">Title</h1>
+        <p class="muted">
+            <a th:href="@{/companies/{id}(id=${app.company.id})}" th:text="${app.company.name}">Company</a>
+            · <span th:text="${app.status}">STATUS</span>
+            · <span th:text="${app.workMode}">MODE</span>
+        </p>
+        <p th:if="${app.jdLink}"><a th:href="${app.jdLink}" target="_blank" rel="noopener">JD link</a></p>
+        <pre th:if="${app.jdText}" th:text="${app.jdText}" style="white-space:pre-wrap;font:inherit"></pre>
+        <div class="actions">
+            <a class="btn" th:href="@{/applications/{id}/rounds/new(id=${app.id})}">Add round</a>
+            <a class="btn secondary" th:href="@{/applications/{id}/edit(id=${app.id})}">Edit</a>
+            <form th:action="@{/applications/{id}/soft-delete(id=${app.id})}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="idempotencyKey" th:value="${T(java.util.UUID).randomUUID()}"/>
+                <button class="danger" type="submit" onclick="return confirm('Archive application?')">Archive</button>
+            </form>
+        </div>
+    </section>
+    <section class="panel">
+        <h2>Rounds</h2>
+        <table th:if="${!#lists.isEmpty(rounds)}">
+            <thead><tr><th>Name</th><th>When</th><th>Outcome</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${rounds}">
+                <td><a th:href="@{/rounds/{id}(id=${r.id})}" th:text="${r.name}">Round</a></td>
+                <td th:text="${r.scheduledAt}">-</td>
+                <td th:text="${r.outcome}">PENDING</td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(rounds)}" class="empty">No rounds yet.</p>
+    </section>
+    <section class="panel">
+        <h2>Notes</h2>
+        <div th:each="n : ${notes}" style="margin-bottom:0.75rem">
+            <strong th:text="${n.title}"></strong>
+            <div th:text="${n.body}"></div>
+        </div>
+        <form th:action="@{/applications/{id}/notes(id=${app.id})}" th:object="${noteForm}" method="post" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input th:field="*{title}" placeholder="Title" required/>
+            <textarea th:field="*{body}" required></textarea>
+            <button type="submit">Add note</button>
+        </form>
+    </section>
+    <section class="panel">
+        <h2>Resources</h2>
+        <ul>
+            <li th:each="r : ${resources}"><span th:text="${r.title}"></span>
+                <a th:if="${r.url}" th:href="${r.url}" target="_blank" rel="noopener">link</a></li>
+        </ul>
+        <form th:action="@{/applications/{id}/resources(id=${app.id})}" th:object="${resourceForm}" method="post" enctype="multipart/form-data" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input th:field="*{title}" required/>
+            <input th:field="*{url}" placeholder="URL"/>
+            <input type="file" name="file"/>
+            <button type="submit">Add resource</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

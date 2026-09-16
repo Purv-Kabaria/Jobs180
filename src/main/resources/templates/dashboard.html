@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Dashboard — Company Tracker</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <h1>Dashboard</h1>
+    <p class="muted">Application pipeline overview</p>
+    <section class="panel">
+        <h2>By status</h2>
+        <div class="grid">
+            <div class="stat" th:each="status : ${statuses}">
+                <span class="muted" th:text="${status}">STATUS</span>
+                <strong th:text="${statusCounts[status]} ?: 0">0</strong>
+            </div>
+        </div>
+    </section>
+    <section class="panel">
+        <h2>Upcoming rounds (14 days)</h2>
+        <p th:if="${#lists.isEmpty(upcoming)}" class="empty">No upcoming rounds.</p>
+        <table th:if="${!#lists.isEmpty(upcoming)}">
+            <thead><tr><th>When</th><th>Round</th><th>Role</th><th>Company</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${upcoming}">
+                <td th:text="${r.scheduledAt}">-</td>
+                <td><a th:href="@{/rounds/{id}(id=${r.id})}" th:text="${r.name}">Round</a></td>
+                <td th:text="${r.application.title}">Role</td>
+                <td th:text="${r.application.company.name}">Company</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

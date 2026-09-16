@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Resumes</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <section class="panel">
+        <h1>Resume library</h1>
+        <table th:if="${!#lists.isEmpty(resumes)}">
+            <thead><tr><th>Label</th><th>File</th><th>URL</th><th></th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${resumes}">
+                <td th:text="${r.label}">Label</td>
+                <td>
+                    <a th:if="${r.storageKey != null}" th:href="@{/resumes/{id}/content(id=${r.id})}">Download</a>
+                    <span th:if="${r.storageKey == null}">-</span>
+                </td>
+                <td><a th:if="${r.externalUrl != null}" th:href="${r.externalUrl}" target="_blank" rel="noopener">Open</a></td>
+                <td>
+                    <form th:action="@{/resumes/{id}/soft-delete(id=${r.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <input type="hidden" name="idempotencyKey" th:value="${T(java.util.UUID).randomUUID()}"/>
+                        <button class="danger" type="submit">Archive</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(resumes)}" class="empty">No resumes yet.</p>
+    </section>
+    <section class="panel">
+        <h2>Add resume</h2>
+        <form th:action="@{/resumes}" th:object="${form}" method="post" enctype="multipart/form-data" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <div><label>Label</label><input th:field="*{label}" required/></div>
+            <div><label>External URL</label><input th:field="*{externalUrl}"/></div>
+            <div><label>File (PDF/DOC/DOCX)</label><input type="file" name="file"/></div>
+            <button type="submit">Add</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

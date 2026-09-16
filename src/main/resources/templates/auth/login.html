@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Login — Company Tracker</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div class="auth-wrap panel">
+    <h1>Sign in</h1>
+    <p class="muted">Track companies, roles, rounds, and resumes.</p>
+    <div th:if="${param.error}" class="flash err">Invalid credentials</div>
+    <div th:if="${param.logout}" class="flash ok">Signed out</div>
+    <div th:if="${warning}" class="flash warn" th:text="${warning}"></div>
+    <div th:if="${error}" class="flash err" th:text="${error}"></div>
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <form th:action="@{/login}" method="post" class="stack">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <div>
+            <label for="username">Email</label>
+            <input id="username" name="username" type="email" required autocomplete="username"/>
+        </div>
+        <div>
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password" required autocomplete="current-password"/>
+        </div>
+        <button type="submit">Sign in</button>
+    </form>
+    <p class="muted">No account? <a th:href="@{/signup}">Sign up</a></p>
+</div>
+</body>
+</html>

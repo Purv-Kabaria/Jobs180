@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Upcoming</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <section class="panel">
+        <h1>Upcoming rounds</h1>
+        <table th:if="${!#lists.isEmpty(rounds)}">
+            <thead><tr><th>When</th><th>Round</th><th>Role</th><th>Company</th></tr></thead>
+            <tbody>
+            <tr th:each="r : ${rounds}">
+                <td th:text="${r.scheduledAt}"></td>
+                <td><a th:href="@{/rounds/{id}(id=${r.id})}" th:text="${r.name}"></a></td>
+                <td th:text="${r.application.title}"></td>
+                <td th:text="${r.application.company.name}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(rounds)}" class="empty">Nothing scheduled.</p>
+    </section>
+</main>
+</body>
+</html>

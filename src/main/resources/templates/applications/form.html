@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Application</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <section class="panel">
+        <h1 th:text="${applicationId != null} ? 'Edit application' : 'New application'">Application</h1>
+        <form th:object="${form}" method="post" class="stack"
+              th:action="${applicationId != null} ? @{/applications/{id}(id=${applicationId})} : @{/companies/{id}/applications(id=${companyId})}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input type="hidden" th:field="*{version}"/>
+            <div><label>Title</label><input th:field="*{title}" required/></div>
+            <div><label>Status</label>
+                <select th:field="*{status}">
+                    <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}"></option>
+                </select>
+            </div>
+            <div><label>Work mode</label>
+                <select th:field="*{workMode}">
+                    <option th:each="w : ${workModes}" th:value="${w}" th:text="${w}"></option>
+                </select>
+            </div>
+            <div><label>JD link</label><input th:field="*{jdLink}"/></div>
+            <div><label>JD text</label><textarea th:field="*{jdText}"></textarea></div>
+            <div><label>Compensation</label><input th:field="*{compensation}"/></div>
+            <div><label>Applied date</label><input type="date" th:field="*{appliedDate}"/></div>
+            <div><label>Source</label><input th:field="*{source}"/></div>
+            <div><label><input type="checkbox" th:field="*{referral}"/> Referral</label></div>
+            <button type="submit">Save</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

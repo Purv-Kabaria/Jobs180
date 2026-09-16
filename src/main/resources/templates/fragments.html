@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${pageTitle} ?: 'Company Tracker'">Company Tracker</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<header class="topbar" th:fragment="topbar">
+    <a class="brand" th:href="@{/dashboard}">Company Tracker</a>
+    <nav sec:authorize="isAuthenticated()">
+        <a th:href="@{/dashboard}">Dashboard</a>
+        <a th:href="@{/companies}">Companies</a>
+        <a th:href="@{/resumes}">Resumes</a>
+        <a th:href="@{/search}">Search</a>
+        <a th:href="@{/upcoming}">Upcoming</a>
+        <a th:href="@{/admin/users}" sec:authorize="hasRole('ADMIN')">Admin</a>
+        <form th:action="@{/logout}" method="post" class="inline">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <button type="submit" class="linkish">Logout</button>
+        </form>
+    </nav>
+</header>
+</body>
+</html>

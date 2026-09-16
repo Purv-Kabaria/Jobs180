@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Admin users</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <div th:if="${error}" class="flash err" th:text="${error}"></div>
+    <section class="panel">
+        <h1>Users</h1>
+        <table>
+            <thead><tr><th>Email</th><th>Role</th><th>Enabled</th><th>Actions</th></tr></thead>
+            <tbody>
+            <tr th:each="u : ${users}">
+                <td th:text="${u.email}"></td>
+                <td th:text="${u.role}"></td>
+                <td th:text="${u.enabled}"></td>
+                <td class="actions">
+                    <form th:action="@{/admin/users/{id}/role(id=${u.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <input type="hidden" name="role" th:value="${u.role.name() == 'ADMIN'} ? 'USER' : 'ADMIN'"/>
+                        <button type="submit" th:text="${u.role.name() == 'ADMIN'} ? 'Demote' : 'Promote'">Role</button>
+                    </form>
+                    <form th:if="${u.enabled}" th:action="@{/admin/users/{id}/disable(id=${u.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit">Disable</button>
+                    </form>
+                    <form th:if="${!u.enabled}" th:action="@{/admin/users/{id}/enable(id=${u.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit">Enable</button>
+                    </form>
+                    <form th:action="@{/admin/users/{id}/soft-delete(id=${u.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button class="danger" type="submit" onclick="return confirm('Archive user and their data?')">Archive</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+    <section class="panel">
+        <h2>Archived users</h2>
+        <table th:if="${!#lists.isEmpty(deletedUsers)}">
+            <thead><tr><th>Email</th><th>Actions</th></tr></thead>
+            <tbody>
+            <tr th:each="u : ${deletedUsers}">
+                <td th:text="${u.email}"></td>
+                <td class="actions">
+                    <form th:action="@{/admin/users/{id}/restore(id=${u.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit">Restore</button>
+                    </form>
+                    <form th:action="@{/admin/users/{id}/hard-delete(id=${u.id})}" method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button class="danger" type="submit" onclick="return confirm('Permanently delete user and blobs?')">Hard delete</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(deletedUsers)}" class="empty">None</p>
+    </section>
+</main>
+</body>
+</html>

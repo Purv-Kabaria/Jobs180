@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Round</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <section class="panel">
+        <h1 th:text="${roundId != null} ? 'Edit round' : 'New round'">Round</h1>
+        <form th:object="${form}" method="post" class="stack"
+              th:action="${roundId != null} ? @{/rounds/{id}(id=${roundId})} : @{/applications/{id}/rounds(id=${applicationId})}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input type="hidden" th:field="*{version}"/>
+            <div><label>Name</label><input th:field="*{name}" required/></div>
+            <div><label>Scheduled at (UTC local datetime)</label><input th:field="*{scheduledAt}" placeholder="2026-09-13T15:00"/></div>
+            <div><label>Outcome</label>
+                <select th:field="*{outcome}">
+                    <option th:each="o : ${outcomes}" th:value="${o}" th:text="${o}"></option>
+                </select>
+            </div>
+            <div><label>Interviewers</label><input th:field="*{interviewers}"/></div>
+            <div><label>Resume</label>
+                <select th:field="*{resumeId}">
+                    <option value="">None</option>
+                    <option th:each="r : ${resumes}" th:value="${r.id}" th:text="${r.label}"></option>
+                </select>
+            </div>
+            <button type="submit">Save</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

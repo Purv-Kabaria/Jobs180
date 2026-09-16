@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${companyId != null} ? 'Edit company' : 'New company'">Company</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <section class="panel">
+        <h1 th:text="${companyId != null} ? 'Edit company' : 'New company'">Company</h1>
+        <form th:object="${form}"
+              th:action="${companyId != null} ? @{/companies/{id}(id=${companyId})} : @{/companies}"
+              method="post" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input type="hidden" th:field="*{version}"/>
+            <div>
+                <label>Name</label>
+                <input th:field="*{name}" required maxlength="200"/>
+            </div>
+            <div>
+                <label>Website</label>
+                <input th:field="*{website}"/>
+            </div>
+            <div>
+                <label>Industry</label>
+                <input th:field="*{industry}"/>
+            </div>
+            <div>
+                <label>Location</label>
+                <input th:field="*{location}"/>
+            </div>
+            <div>
+                <label>Career page URL</label>
+                <input th:field="*{careerPageUrl}"/>
+            </div>
+            <div class="actions">
+                <button type="submit">Save</button>
+                <a class="btn secondary" th:href="@{/companies}">Cancel</a>
+            </div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

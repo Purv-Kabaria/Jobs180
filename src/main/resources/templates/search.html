@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Search</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <section class="panel">
+        <h1>Search applications</h1>
+        <form method="get" class="stack">
+            <div><label>Company</label><input name="company" th:value="${company}"/></div>
+            <div><label>Status</label>
+                <select name="status">
+                    <option value="">Any</option>
+                    <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}" th:selected="${status == s}"></option>
+                </select>
+            </div>
+            <div><label>From</label><input type="date" name="from" th:value="${from}"/></div>
+            <div><label>To</label><input type="date" name="to" th:value="${to}"/></div>
+            <button type="submit">Search</button>
+        </form>
+    </section>
+    <section class="panel">
+        <table th:if="${results != null && results.totalElements > 0}">
+            <thead><tr><th>Company</th><th>Title</th><th>Status</th><th>Applied</th></tr></thead>
+            <tbody>
+            <tr th:each="a : ${results.content}">
+                <td th:text="${a.company.name}"></td>
+                <td><a th:href="@{/applications/{id}(id=${a.id})}" th:text="${a.title}"></a></td>
+                <td th:text="${a.status}"></td>
+                <td th:text="${a.appliedDate}"></td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${results == null || results.totalElements == 0}" class="empty">No results.</p>
+    </section>
+</main>
+</body>
+</html>

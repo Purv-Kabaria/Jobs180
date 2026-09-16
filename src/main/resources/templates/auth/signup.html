@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Sign up — Company Tracker</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div class="auth-wrap panel">
+    <h1>Create account</h1>
+    <p class="muted">The first user becomes admin.</p>
+    <div th:if="${error}" class="flash err" th:text="${error}"></div>
+    <form th:if="${signupsEnabled}" th:action="@{/signup}" th:object="${form}" method="post" class="stack">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        <input type="hidden" th:field="*{idempotencyKey}"/>
+        <div>
+            <label for="email">Email</label>
+            <input id="email" th:field="*{email}" type="email" required/>
+        </div>
+        <div>
+            <label for="password">Password (min 8)</label>
+            <input id="password" th:field="*{password}" type="password" required minlength="8"/>
+        </div>
+        <button type="submit">Sign up</button>
+    </form>
+    <p th:if="${!signupsEnabled}" class="flash warn">Signups are disabled.</p>
+    <p class="muted"><a th:href="@{/login}">Back to sign in</a></p>
+</div>
+</body>
+</html>

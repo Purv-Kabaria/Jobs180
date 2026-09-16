@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Error</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<main class="container">
+    <section class="panel">
+        <h1 th:text="${code} ?: 'Error'">Error</h1>
+        <p th:text="${message} ?: 'Something went wrong'">Something went wrong</p>
+        <a th:href="@{/dashboard}">Back to dashboard</a>
+    </section>
+</main>
+</body>
+</html>

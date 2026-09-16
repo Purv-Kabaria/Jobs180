@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${round.name}">Round</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <section class="panel">
+        <h1 th:text="${round.name}">Round</h1>
+        <p class="muted">
+            <a th:href="@{/applications/{id}(id=${round.application.id})}" th:text="${round.application.title}">App</a>
+            · <span th:text="${round.outcome}">PENDING</span>
+            · <span th:text="${round.scheduledAt}">-</span>
+        </p>
+        <p th:if="${round.interviewers}" th:text="'Interviewers: ' + ${round.interviewers}"></p>
+        <p th:if="${round.resume != null}">
+            Resume: <span th:text="${round.resume.label}"></span>
+            <a th:if="${round.resume.storageKey != null}" th:href="@{/resumes/{id}/content(id=${round.resume.id})}">download</a>
+            <a th:if="${round.resume.externalUrl != null}" th:href="${round.resume.externalUrl}" target="_blank" rel="noopener">link</a>
+        </p>
+        <div class="actions">
+            <a class="btn secondary" th:href="@{/rounds/{id}/edit(id=${round.id})}">Edit</a>
+            <form th:action="@{/rounds/{id}/soft-delete(id=${round.id})}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="idempotencyKey" th:value="${T(java.util.UUID).randomUUID()}"/>
+                <button class="danger" type="submit">Archive</button>
+            </form>
+        </div>
+    </section>
+    <section class="panel">
+        <h2>Notes</h2>
+        <div th:each="n : ${notes}" style="margin-bottom:0.75rem">
+            <strong th:text="${n.title}"></strong>
+            <div th:text="${n.body}"></div>
+        </div>
+        <form th:action="@{/rounds/{id}/notes(id=${round.id})}" th:object="${noteForm}" method="post" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input th:field="*{title}" required/>
+            <textarea th:field="*{body}" required></textarea>
+            <button type="submit">Add note</button>
+        </form>
+    </section>
+    <section class="panel">
+        <h2>Resources</h2>
+        <ul>
+            <li th:each="r : ${resources}"><span th:text="${r.title}"></span>
+                <a th:if="${r.url}" th:href="${r.url}" target="_blank" rel="noopener">link</a></li>
+        </ul>
+        <form th:action="@{/rounds/{id}/resources(id=${round.id})}" th:object="${resourceForm}" method="post" enctype="multipart/form-data" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input th:field="*{title}" required/>
+            <input th:field="*{url}"/>
+            <input type="file" name="file"/>
+            <button type="submit">Add resource</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title th:text="${company.name}">Company</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{fragments :: topbar}"></div>
+<main class="container">
+    <div th:if="${success}" class="flash ok" th:text="${success}"></div>
+    <section class="panel">
+        <h1 th:text="${company.name}">Company</h1>
+        <p class="muted">
+            <span th:if="${company.industry}" th:text="${company.industry}">Industry</span>
+            <span th:if="${company.location}" th:text="' · ' + ${company.location}"></span>
+        </p>
+        <p th:if="${company.website}"><a th:href="${company.website}" th:text="${company.website}" rel="noopener" target="_blank">Website</a></p>
+        <p th:if="${company.careerPageUrl}"><a th:href="${company.careerPageUrl}" rel="noopener" target="_blank">Career page</a></p>
+        <div class="actions">
+            <a class="btn" th:href="@{/companies/{id}/applications/new(id=${company.id})}">Add role</a>
+            <a class="btn secondary" th:href="@{/companies/{id}/edit(id=${company.id})}">Edit</a>
+            <form th:action="@{/companies/{id}/soft-delete(id=${company.id})}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="idempotencyKey" th:value="${T(java.util.UUID).randomUUID()}"/>
+                <button type="submit" class="danger" onclick="return confirm('Archive this company?')">Archive</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Roles / applications</h2>
+        <p th:if="${#lists.isEmpty(applications)}" class="empty">No roles yet.</p>
+        <table th:if="${!#lists.isEmpty(applications)}">
+            <thead><tr><th>Title</th><th>Status</th><th>Applied</th></tr></thead>
+            <tbody>
+            <tr th:each="a : ${applications}">
+                <td><a th:href="@{/applications/{id}(id=${a.id})}" th:text="${a.title}">Title</a></td>
+                <td th:text="${a.status}">STATUS</td>
+                <td th:text="${a.appliedDate}">-</td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="panel">
+        <h2>Notes</h2>
+        <div th:each="n : ${notes}" class="stack" style="margin-bottom:1rem">
+            <strong th:text="${n.title}">Title</strong>
+            <div th:text="${n.body}">Body</div>
+        </div>
+        <form th:action="@{/companies/{id}/notes(id=${company.id})}" th:object="${noteForm}" method="post" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input th:field="*{title}" placeholder="Note title" required/>
+            <textarea th:field="*{body}" placeholder="Note body" required></textarea>
+            <button type="submit">Add note</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Resources</h2>
+        <ul>
+            <li th:each="r : ${resources}">
+                <span th:text="${r.title}">Title</span>
+                <a th:if="${r.url}" th:href="${r.url}" target="_blank" rel="noopener">link</a>
+            </li>
+        </ul>
+        <form th:action="@{/companies/{id}/resources(id=${company.id})}" th:object="${resourceForm}" method="post" enctype="multipart/form-data" class="stack">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            <input type="hidden" th:field="*{idempotencyKey}"/>
+            <input th:field="*{title}" placeholder="Resource title" required/>
+            <input th:field="*{url}" placeholder="URL (optional if file attached)"/>
+            <input type="file" name="file"/>
+            <button type="submit">Add resource</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>
