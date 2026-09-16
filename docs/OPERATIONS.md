@@ -1,69 +1,148 @@
-# Operations
+# Jobs180 — Operations
 
-## Local run
+How to run, configure, back up, scale, and survive incidents.
+
+---
+
+## 1. Local bring-up
 
 ```bash
 docker compose up --build
 ```
 
-Services: app `:8080`, Postgres `:5432`, Redis `:6379`, MinIO `:9000` / console `:9001`.
+Services: app, postgres, redis, minio, minio-init.
 
-First visit `/signup`. That user is admin.
+App: http://localhost:8080  
 
-## Configuration (12-factor)
+### Why Compose as the default path?
 
-All runtime knobs are environment variables. See [`.env.example`](../.env.example).
+| Approach | Verdict |
+|----------|---------|
+| **A. Compose (chosen)** | One file mirrors prod-shaped deps |
+| B. “Install Postgres/Redis/MinIO yourself” README | High friction; drift from tested combo |
+| C. Embedded H2+mock storage only | Doesn’t exercise real session/object paths |
 
-Same container image should run in Compose and in cloud by changing:
+---
 
-- datasource URL
-- Redis host
-- `APP_S3_*` endpoint/credentials/bucket
+## 2. Configuration philosophy
 
-## Profiles
+**Same artifact, different environment.** Secrets and URLs never baked into the image.
 
-- Default/`application.yml` — local-friendly Thymeleaf cache off
-- `prod` — Thymeleaf cache on, secure cookies, HSTS, stricter health details
+See [`.env.example`](../.env.example).
 
-Compose sets `SPRING_PROFILES_ACTIVE=prod`.
+### Critical variables
 
-## Health
+| Variable | Meaning |
+|----------|---------|
+| `SPRING_DATASOURCE_*` | Postgres |
+| `SPRING_DATA_REDIS_*` | Redis |
+| `SPRING_PROFILES_ACTIVE=prod` | Secure cookies, template cache, HSTS |
+| `APP_S3_*` | Object storage (bucket default `jobs180`) |
+| `APP_STORAGE_TYPE` | `s3` prod/dev Compose; `local` tests |
+| `APP_SIGNUPS_ENABLED` | Kill switch |
+| `APP_RATE_LIMIT_*` | Abuse controls |
+| `APP_IDEMPOTENCY_TTL_SECONDS` | Retry window |
+| `APP_CORS_ALLOWED_ORIGINS` | Opt-in cross-origin |
+| `JAVA_OPTS` | Container memory policy |
 
-- `/actuator/health` — aggregate
-- Kubernetes-style probes enabled via Boot (`liveness` / `readiness`)
+### Why path-style S3 for MinIO?
 
-Do not expose sensitive actuator endpoints publicly without auth.
+MinIO commonly requires path-style addressing. Virtual-host style is typical on AWS. `APP_S3_PATH_STYLE=true` makes local MinIO work; set appropriately for your cloud vendor.
 
-## Backups
+---
 
-1. **Postgres** — logical dump (`pg_dump`) or managed snapshots.
-2. **MinIO/S3** — bucket versioning / replication as needed.
-3. **Redis** — optional AOF volume in Compose; treat as disposable for sessions/cache (users re-login if wiped).
+## 3. Profiles
 
-Restore order: database first, then ensure object keys referenced by rows still exist.
+| Profile | Behavior |
+|---------|----------|
+| default | Dev-friendly Thymeleaf cache off |
+| `prod` | Template cache on; secure session cookies; HSTS; less health detail leakage |
 
-## Scaling checklist
+Compose runs `prod`.
 
-- [ ] `APP_STORAGE_TYPE=s3` (never local disk for multi-node)
-- [ ] Shared Redis for sessions + rate limits + idempotency
-- [ ] Shared Postgres
-- [ ] Stateless app replicas behind a load balancer
-- [ ] TLS terminator sets forwarded headers (Boot `forward-headers-strategy=framework`)
+---
 
-## JVM
+## 4. Health & probes
 
-`JAVA_OPTS` (e.g. `-XX:MaxRAMPercentage=75.0`) controls heap inside containers.
+Actuator exposes health/info. Use readiness to gate traffic on DB/Redis availability.
 
-## Migrations
+**Do not** expose unauthenticated detailed health with secrets on a public internet without a proxy ACL.
 
-Flyway owns schema. `ddl-auto=validate` in prod—**never** auto-mutate production schema from Hibernate.
+---
 
-## Incident switches
+## 5. Backups
 
-- `APP_SIGNUPS_ENABLED=false` — stop new registrations
-- Rate limit env vars — tighten under abuse
-- Disable user in admin UI — immediate session revoke
+### What matters
 
-## Logs
+1. **Postgres** — without it, Jobs180 is empty.  
+2. **Object bucket** — resumes/resources.  
+3. **Redis** — optional; losing it logs everyone out and clears RL/idempotency/cache.
 
-Prefer structured messages with user ids on admin actions; avoid logging passwords, session ids, or file contents.
+### Suggested cadence (self-host)
+
+- Daily Postgres dump + bucket sync
+- Weekly restore drill to a scratch environment
+
+### Restore order
+
+1. Restore Postgres  
+2. Restore/ensure bucket objects for keys referenced by rows  
+3. Start app  
+4. Accept Redis cold start
+
+---
+
+## 6. Scaling
+
+### Horizontal app replicas
+
+Requirements:
+
+- Shared Redis
+- Shared Postgres
+- S3/MinIO (**not** local disk)
+- LB without sticky sessions
+
+### Vertical
+
+Raise `JAVA_OPTS` / container memory; tune Hikari pool via env.
+
+### What we don’t do in v1
+
+- Read replicas / CQRS
+- Redis Cluster specifics (document managed Redis instead)
+- Multi-region active-active
+
+---
+
+## 7. Incident playbooks (short)
+
+| Incident | Action |
+|----------|--------|
+| Signup spam | `APP_SIGNUPS_ENABLED=false`; tighten signup rate limit |
+| Credential stuffing | Tighten login rate limit; disable abused accounts |
+| Accidental user delete | Soft-delete → restore by batch; hard delete only if sure |
+| Locked out as sole admin | Prevented by guards; if DB surgery needed, restore from backup |
+| Disk/S3 full | Uploads fail; free space; raise quota |
+| Redis outage | Fix Redis; do not run split in-memory sessions |
+
+---
+
+## 8. Migrations
+
+Flyway on startup. Prod Hibernate `ddl-auto=validate`.
+
+**Never** use `update` against production. Schema changes = new Flyway files reviewed in PRs.
+
+---
+
+## 9. Observability hygiene
+
+Log admin mutations with actor id + target id. Never log passwords, session ids, or file contents. Prefer correlation ids at the reverse proxy.
+
+---
+
+## 10. Renaming notes
+
+Product/repo: **Jobs180**.  
+Postgres DB name may still be `company_tracker` in Compose for continuity—treat as internal identifier until a dedicated rename migration is scheduled.

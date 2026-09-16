@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title th:text="${pageTitle} ?: 'Company Tracker'">Company Tracker</title>
+    <title th:text="${pageTitle} ?: 'Jobs180'">Jobs180</title>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
 </head>
 <body>
 <header class="topbar">
-    <a class="brand" th:href="@{/dashboard}">Company Tracker</a>
+    <a class="brand" th:href="@{/dashboard}">Jobs180</a>
     <nav sec:authorize="isAuthenticated()">
         <a th:href="@{/dashboard}">Dashboard</a>
         <a th:href="@{/companies}">Companies</a>

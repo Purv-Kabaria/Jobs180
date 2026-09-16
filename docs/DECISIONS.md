@@ -1,58 +1,148 @@
-# Design decisions
+# Jobs180 — Decision log (X vs A/B/C)
 
-Short record of **choices and tradeoffs**. For narrative, see [ARCHITECTURE.md](ARCHITECTURE.md).
+Architecture Decision Records in compact form. Each entry states context, options, decision, and consequences.
 
-## Product
+---
 
-| Decision | Choice | Alternative considered | Why |
-|----------|--------|------------------------|-----|
-| App type | Job application tracker | Company CRM only | User intent: pipeline + rounds + resumes |
-| Privacy | Per-user private data | Shared workspace | Simpler threat model; personal tracker |
-| First admin | First signup | Seed env user | Zero-config bootstrap for self-host |
-| UI | Thymeleaf + API | SPA-only | Faster CRUD delivery; API still available |
+## D1 — Product shape
 
-## Platform
+**Context:** Need a tracker for applications, not a CRM.  
+**Options:** (A) Application tracker (B) Company wiki/CRM (C) Hybrid.  
+**Decision:** A.  
+**Consequences:** Hierarchy optimizes for roles/rounds/resumes; research companies allowed without roles.
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Language | Java 21 | Long-term support, strong Spring ecosystem |
-| Framework | Spring Boot 3 | Security, JPA, Session, Actuator integration |
-| DB | PostgreSQL 16 | Constraints, indexes, ops maturity |
-| Cache/session | Redis 7 | Multi-replica coordination |
-| Files | MinIO (S3 API) | Portable object storage |
-| Migrations | Flyway | Explicit, reviewable schema history |
+---
 
-## Domain
+## D2 — Privacy model
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Soft delete | `deleted_at` + batch id | Undo without resurrecting unrelated archives |
-| Optimistic lock | `@Version` | Catch concurrent edits cheaply |
-| Resume attach | FK nullable + SET NULL | Library entries outlive round links |
-| Status storage | TEXT + CHECK | Easier migrations than PG ENUM |
+**Context:** Multiple accounts on one deployment.  
+**Options:** (A) Private per user + admin (B) Fully shared (C) Shared companies / private applications.  
+**Decision:** A.  
+**Consequences:** Simpler authz; no sharing UX; admin is break-glass.
 
-## Security
+---
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Session store | Redis | Horizontal scale |
-| Password hash | BCrypt(12) | Standard, slow-by-design |
-| Non-owner | 404 | Reduce enumeration |
-| Sole admin | Block demote/disable/delete | Avoid lockout |
-| CSRF on API | Required after login | Browser-safe cookies |
+## D3 — UI technology
 
-## API
+**Context:** Need usable CRUD quickly, plus automation API.  
+**Options:** (A) Thymeleaf SSR + REST (B) SPA-only (C) SSR-only.  
+**Decision:** A.  
+**Consequences:** Shared services; CSRF/session natural; SPA can be added later without rewriting rules.
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| Soft delete method | POST action | Clear semantics vs DELETE |
-| Idempotency | Redis keys | Safe retries |
-| Page size cap | 100 | DoS / accident protection |
+---
 
-## Explicit non-goals (v1)
+## D4 — Language/runtime
 
-- OAuth / magic links / email verification
-- Cross-user sharing
-- Antivirus scanning of uploads
-- Read replicas / CQRS
-- GraphQL
+**Options:** (A) Java 21 Spring Boot (B) Node (C) Django (D) Rails.  
+**Decision:** A.  
+**Consequences:** Strong Security/Session/JPA story; heavier memory than Node; excellent long-term maintainability for this author/context.
+
+---
+
+## D5 — Database
+
+**Options:** (A) PostgreSQL (B) MySQL (C) MongoDB (D) SQLite.  
+**Decision:** A.  
+**Consequences:** Best constraint/index/lock toolkit for our invariants; requires a service in Compose.
+
+---
+
+## D6 — Schema migration tool
+
+**Options:** (A) Flyway (B) Liquibase (C) Hibernate ddl-auto.  
+**Decision:** A; prod validate-only.  
+**Consequences:** SQL is reviewable; no surprise prod DDL.
+
+---
+
+## D7 — Session store
+
+**Options:** (A) Redis (B) In-memory (C) JDBC (D) JWT-only.  
+**Decision:** A.  
+**Consequences:** Multi-replica auth; Redis becomes a hard dependency for readiness philosophy.
+
+---
+
+## D8 — File storage
+
+**Options:** (A) S3 API / MinIO (B) Local disk only (C) Postgres BYTEA.  
+**Decision:** A; local adapter for tests.  
+**Consequences:** Env-only cloud swap; must back up bucket; MinIO in Compose.
+
+---
+
+## D9 — Soft delete semantics
+
+**Options:** (A) deleted_at + deletion_batch_id (B) Hard only (C) deleted_at without batch.  
+**Decision:** A.  
+**Consequences:** Safe restore; slightly more service code.
+
+---
+
+## D10 — First admin
+
+**Options:** (A) First signup (B) Env seed (C) Invite-only.  
+**Decision:** A + lock row.  
+**Consequences:** Easy self-host; must protect sole-admin thereafter.
+
+---
+
+## D11 — Non-owner HTTP code
+
+**Options:** (A) 404 (B) 403.  
+**Decision:** A.  
+**Consequences:** Less enumeration; slightly harder client debugging.
+
+---
+
+## D12 — Idempotency
+
+**Options:** (A) Redis keys (B) None (C) DB unique constraints only.  
+**Decision:** A for unsafe creates/actions.  
+**Consequences:** Clients should send keys; Redis TTL required.
+
+---
+
+## D13 — Rate limiting
+
+**Options:** (A) Redis fixed window (B) Local memory (C) API gateway only.  
+**Decision:** A in-app.  
+**Consequences:** Works without mandatory gateway; gateway can still be added.
+
+---
+
+## D14 — API soft-delete method
+
+**Options:** (A) POST action (B) DELETE soft (C) PATCH tombstone field only).  
+**Decision:** A; DELETE = hard purge.  
+**Consequences:** Clear semantics; more endpoints.
+
+---
+
+## D15 — Polymorphic notes/resources
+
+**Options:** (A) Three nullable FKs + CHECK (B) parent_type/id (C) JSON array on parent).  
+**Decision:** A.  
+**Consequences:** Real FKs; CHECK enforces exactly one parent.
+
+---
+
+## D16 — Optimistic vs pessimistic locking
+
+**Options:** (A) Version on aggregates + pessimistic for first admin (B) All pessimistic (C) Last write wins.  
+**Decision:** A.  
+**Consequences:** Good UX for forms; explicit 409 on conflict.
+
+---
+
+## D17 — Branding
+
+**Options:** (A) Jobs180 (B) Company Tracker descriptive name.  
+**Decision:** A for product/repo; internal Java package may retain historical namespace.  
+**Consequences:** Clear product identity; package rename optional later (large churn).
+
+---
+
+## D18 — Non-goals v1
+
+Explicitly deferred: OAuth, email verify/reset, sharing, AV scanning, GraphQL, microservices, billing.

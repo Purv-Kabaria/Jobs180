@@ -1,73 +1,174 @@
-# Security
+# Jobs180 — Security
 
-## Threat model (practical)
+## 1. Threat model
 
-We assume:
+### In scope
 
-- The network may be hostile (brute force, CSRF, XSS).
-- Users should not see each other’s data.
-- Admins are trusted operators but must not lock themselves out (sole-admin rules).
-- App instances may be restarted or multiplied at any time.
+- Internet attacker probing login, signup, APIs
+- Authenticated user attempting **IDOR** on another user’s ids
+- Browser CSRF from a malicious site while user is logged into Jobs180
+- XSS via stored notes/titles if escaping failed
+- Abuse: credential stuffing, spam signup, upload floods
+- Admin mistakes: demoting the only admin; deleting a user who is online
 
-We do **not** claim protection against a fully compromised server or malicious admin with DB access.
+### Out of scope (v1)
 
-## Authentication
+- Malicious admin with shell/DB access
+- Physical theft of unlocked workstation
+- Nation-state side channels
+- Guaranteed malware-free uploads (no AV gateway yet)
 
-- Form login (Thymeleaf) and API login (`POST /api/v1/auth/login`) establish a **server session**.
-- Session data lives in **Redis** (`Spring Session`), cookie holds the session id.
-- Passwords: **BCrypt** (cost factor 12 by default).
+---
 
-### First user = admin
+## 2. Authentication design
 
-Under a DB lock, if there are zero users, signup assigns `ADMIN`; otherwise `USER`. This bootstraps ops without baking credentials into images.
+### Chosen: email/password + server session (Redis)
 
-## Authorization
+| Alternative | Why rejected |
+|-------------|--------------|
+| Magic link only | Needs mail infra; worse offline/dev UX |
+| OAuth-only | Couples self-host to Google/GitHub; account bootstrap harder |
+| JWT access+refresh as primary | Revocation complexity; SSR cookie CSRF still needed if used from browser |
+| API keys for humans | Bad UX for the HTML app |
 
-1. Spring Security URL rules (`/admin/**` requires `ROLE_ADMIN`).
-2. Service-layer **OwnershipGuard**: owner or admin; else `NOT_FOUND`.
-3. File download checks ownership before streaming.
+### Password hashing: BCrypt(12)
 
-## Session revocation
+Defended in [CONCEPTS.md](CONCEPTS.md). Rotate algorithm later if desired; store hashes opaquely.
 
-On disable / soft-delete / hard-delete / role change:
+### First-user admin bootstrap
 
-1. Rotate `security_stamp`.
-2. Delete that user’s sessions in Redis.
-3. `SecurityStampFilter` compares stamp on each request; mismatch → logout / 401.
+| Alternative | Why rejected |
+|-------------|--------------|
+| **First signup = admin (chosen)** | Zero-config self-host |
+| Env-seeded admin only | Requires secret distribution before first use |
+| Open admin toggle in UI | Trivial takeover |
 
-So an admin deleting a logged-in user takes effect on the **next request**, not after cookie TTL.
+Concurrent bootstrap protected by `app_locks` + transaction.
 
-## CSRF
+---
 
-State-changing browser calls need a CSRF token. Cookie `XSRF-TOKEN` (readable by JS) + form field / `X-XSRF-TOKEN` header.
+## 3. Authorization design
 
-API auth endpoints (`/api/v1/auth/login|signup`) skip CSRF so non-browser clients can bootstrap a session; afterward CSRF applies like the browser.
+### Layers
 
-## XSS & headers
+1. **Spring Security matchers** — `/admin/**`, `/api/v1/admin/**` need `ROLE_ADMIN`.
+2. **OwnershipGuard** — owner or admin; else `NOT_FOUND`.
+3. **DB constraints** — cannot create structurally invalid notes/resumes even if a bug skips validation.
 
-- Output escaping via Thymeleaf defaults.
-- CSP, `X-Frame-Options: DENY`, nosniff, referrer & permissions policies.
-- HSTS enabled when `prod` profile is active (assume HTTPS terminator).
+### Why 404 instead of 403 for non-owners?
 
-## CORS
+| Code | Effect |
+|------|--------|
+| 403 | Confirms resource exists |
+| **404 (chosen)** | Ambiguous missing vs forbidden |
 
-Empty allowlist = no cross-origin API use. Set `APP_CORS_ALLOWED_ORIGINS` only if a separate frontend origin must call the API with cookies.
+Admins still find resources via admin listings / cross-owner queries.
 
-## Rate limiting
+---
 
-Redis fixed-window limits on login, signup, writes, uploads, and per-IP traffic. Returns `429` with `Retry-After`.
+## 4. Session revocation & security stamps
 
-## Uploads
+When admin disables/deletes/demotes (or stamp rotates):
 
-- Allowlist extensions/MIME (PDF/DOC/DOCX).
-- Max size via config.
-- Server-minted object keys only.
-- Store in object storage after validation; avoid orphan metadata when possible.
+1. Persist new `security_stamp`.
+2. Delete Redis sessions for that principal.
+3. Filter rejects stale in-memory authentication on next request.
 
-## Idempotency & abuse
+| Alternative | Why rejected |
+|-------------|--------------|
+| Wait for session TTL | User keeps access for minutes/hours |
+| Only clear local replica session | Other replicas still authenticated |
+| JWT blacklist | Needs shared blacklist ≈ Redis anyway; more moving parts |
 
-Idempotency keys are scoped per user (or anon IP for signup) and expire—reducing accidental duplication without becoming a forever log.
+---
 
-## Error code hygiene
+## 5. CSRF strategy
 
-Stable codes (`SOLE_ADMIN`, `IDEMPOTENCY_CONFLICT`, `RATE_LIMITED`, …) help clients; messages stay generic where enumeration matters (e.g. login failures).
+- Cookie `XSRF-TOKEN` + request token for mutations.
+- Exempt: `/api/v1/auth/login`, `/api/v1/auth/signup`, actuator health.
+
+**Why exempt login/signup?**  
+Clients need a way to establish a session before they can hold a CSRF token tied to that session. After login, CSRF applies.
+
+**Why not disable CSRF globally for `/api/**`?**  
+Browser JS on another origin could still abuse cookie auth if CORS were ever loosened carelessly. Keeping CSRF for authenticated API mutations is safer default for cookie sessions.
+
+---
+
+## 6. XSS & response headers
+
+- Thymeleaf escaping
+- CSP: default-src self; tight object-src/frame-ancestors
+- `X-Frame-Options: DENY` (clickjacking)
+- nosniff, referrer policy, permissions policy
+- HSTS in `prod` profile (assumes HTTPS edge)
+
+**Why allow `'unsafe-inline'` for styles?**  
+Pragmatic for simple CSS/Bootstrap-less styling; scripts stay `'self'`. A future pass can nonce styles.
+
+---
+
+## 7. CORS
+
+Default: no allowed origins. Jobs180 UI is same-site.
+
+If you set origins, you are explicitly creating a cross-site API consumer—do it knowingly.
+
+---
+
+## 8. Rate limiting
+
+Redis fixed windows:
+
+| Bucket | Default intent |
+|--------|----------------|
+| Login / IP (+ email dimension in filter design) | Brute force |
+| Signup / IP | Account spam |
+| Authenticated writes / user | Runaway scripts |
+| Uploads / user | Disk/S3 cost bombs |
+| Global IP | Coarse DoS cushion |
+
+Returns `429` + `Retry-After`.
+
+**Why Redis not Guava/Bucket4j local?**  
+Local limits don’t work across replicas—attackers spray nodes.
+
+---
+
+## 9. Uploads
+
+- Extension allowlist: pdf/doc/docx
+- Size cap via env
+- Server-minted keys `{userId}/{idempotencyOrRandom}/{uuid}.ext`
+- Stream downloads after ownership check
+
+**Why not trust client Content-Type alone?**  
+Clients lie. Extension allowlist is necessary but not perfect; content sniffing is best-effort.
+
+---
+
+## 10. Idempotency as safety
+
+Not only a convenience—reduces duplicate side effects under retry storms (also an abuse amplifier if free). Keys expire (TTL) so Redis doesn’t grow forever.
+
+---
+
+## 11. Admin safety invariants
+
+- Cannot demote/disable/soft-delete/hard-delete the last enabled admin.
+- Self-demote allowed only if another enabled admin exists; then sessions revoke.
+
+These exist because self-hosted apps die when operators lock themselves out.
+
+---
+
+## 12. Security test mindset
+
+Automate at least:
+
+- sole-admin rejection
+- ownership 404
+- idempotency conflict
+- (manual/integration) session dead after admin disable
+
+Add adversarial cases when touching auth filters.

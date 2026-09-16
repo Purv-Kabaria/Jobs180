@@ -9,7 +9,7 @@ RUN mvn -q -DskipTests package
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY --from=build /workspace/target/company-tracker-*.jar /app/app.jar
+COPY --from=build /workspace/target/jobs180-*.jar /app/app.jar
 USER app
 EXPOSE 8080
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=75.0"

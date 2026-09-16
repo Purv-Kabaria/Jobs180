@@ -16,7 +16,7 @@ public class LocalStoragePort implements StoragePort {
     private final Path root;
 
     public LocalStoragePort() throws IOException {
-        this.root = Path.of(System.getProperty("java.io.tmpdir"), "company-tracker-uploads");
+        this.root = Path.of(System.getProperty("java.io.tmpdir"), "jobs180-uploads");
         Files.createDirectories(root);
     }
 

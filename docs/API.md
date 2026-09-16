@@ -1,102 +1,208 @@
-# API design
+# Jobs180 — API
 
-Base path: `/api/v1`  
-UI routes mirror the same resources under `/companies`, `/applications`, etc.
+Base URL prefix: **`/api/v1`**
 
-## Dual interface, one domain
+The HTML UI is not a second business backend—it calls the same services. This document defines the HTTP contract and defends its conventions.
 
-Controllers (MVC and REST) are thin. **Services** own rules. That keeps HTML and JSON consistent (same soft-delete semantics, same ownership errors).
+---
 
-## Conventions
+## 1. Design goals
 
-| Topic | Choice | Reasoning |
-|-------|--------|-----------|
-| Soft delete | `POST …/soft-delete` | Don’t overload `DELETE` |
-| Restore | `POST …/restore` | Explicit action |
-| Hard purge | `DELETE …` | Irreversible only |
-| Partial update | `PATCH` | Sparse field updates |
-| Lists | `{ content, page, size, totalElements, totalPages }` | Predictable pagination envelope |
-| Errors | `{ code, message, fields? }` | Machine-stable `code` |
-| Non-owner | `404 NOT_FOUND` | Less enumeration |
-| Versions | body `version` / conflict `409` | Optimistic concurrency |
+1. Resource-oriented URLs a human can guess.
+2. Soft delete ≠ hard delete at the method level.
+3. Stable machine error codes.
+4. Safe retries via idempotency.
+5. Cookie session auth compatible with the SSR app (CSRF after login).
 
-## Auth
+---
 
-```
-POST /api/v1/auth/signup
-POST /api/v1/auth/login
-POST /api/v1/auth/logout   # via form logout on UI; session invalidate
-GET  /api/v1/me
-```
+## 2. Conventions (and rejected alternatives)
 
-Login returns session cookie. Subsequent mutating calls need CSRF (except signup/login).
+### Soft delete as POST, hard delete as DELETE
 
-## Core resources
+| Approach | Why accept/reject |
+|----------|-------------------|
+| **A. POST `/soft-delete` + DELETE hard (chosen)** | Unambiguous; matches UI wording |
+| B. DELETE always soft | Then how do you purge? Extra headers are easy to miss |
+| C. DELETE soft + `?force=true` hard | Dangerous footgun; proxies log poorly |
 
-```
-GET|POST            /companies
-GET|PATCH           /companies/{id}
-POST                /companies/{id}/soft-delete|restore
-DELETE              /companies/{id}
+### PATCH for updates
 
-GET|POST            /companies/{id}/applications
-GET|PATCH           /applications/{id}
-POST|DELETE         /applications/{id}/soft-delete | /applications/{id}
+Partial updates without inventing a verb zoo. Clients should send `version` for optimistic concurrency.
 
-GET|POST            /applications/{id}/rounds
-GET|PATCH           /rounds/{id}
-POST                /rounds/{id}/resume     { "resumeId": n }
-DELETE              /rounds/{id}/resume
+### Pagination envelope
 
-GET|POST            /resumes
-GET                 /resumes/{id}/content   # stream download
-
-POST                /{parentType}/{parentId}/notes
-POST                /{parentType}/{parentId}/resources
-# parentType ∈ companies | applications | rounds
-
-GET /dashboard
-GET /search/applications?company=&status=&from=&to=&page=
-GET /upcoming-rounds?withinDays=14
+```json
+{
+  "content": [ ... ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 12,
+  "totalPages": 1
+}
 ```
 
-## Admin
+`size` is clamped (max 100). **Why clamp?** Unbounded `size=999999` is a trivial DoS.
+
+### Errors
+
+```json
+{ "code": "SOLE_ADMIN", "message": "..." }
+```
+
+Optional `fields` on validation errors.
+
+### Non-owner → 404
+
+Defended in [SECURITY.md](SECURITY.md).
+
+---
+
+## 3. Authentication
+
+### `POST /api/v1/auth/signup`
+
+Body: `{ "email", "password", "idempotencyKey"? }`  
+Header: `Idempotency-Key` recommended.  
+Result: `201` user DTO; first user `ADMIN`.
+
+### `POST /api/v1/auth/login`
+
+Body: `{ "email", "password" }`  
+Establishes Redis session cookie. CSRF exempt.
+
+### `GET /api/v1/me`
+
+Current principal identity.
+
+**Why session cookies instead of Bearer JWT for v1?**  
+One auth story for UI and API; immediate revoke; no token refresh machinery.
+
+---
+
+## 4. Resource catalog
+
+### Dashboard / search
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/dashboard` | Counts + upcoming |
+| GET | `/search/applications` | Filters + pagination |
+| GET | `/upcoming-rounds?withinDays=` | Capped window |
+
+### Companies
+
+| Method | Path |
+|--------|------|
+| GET/POST | `/companies` |
+| GET/PATCH | `/companies/{id}` |
+| POST | `/companies/{id}/soft-delete` |
+| POST | `/companies/{id}/restore` |
+| DELETE | `/companies/{id}` |
+
+### Applications
+
+| Method | Path |
+|--------|------|
+| GET/POST | `/companies/{id}/applications` |
+| GET/PATCH | `/applications/{id}` |
+| POST | `/applications/{id}/soft-delete` |
+| DELETE | `/applications/{id}` |
+
+### Rounds
+
+| Method | Path |
+|--------|------|
+| GET/POST | `/applications/{id}/rounds` |
+| GET/PATCH | `/rounds/{id}` |
+| POST | `/rounds/{id}/resume` body `{ "resumeId" }` |
+| DELETE | `/rounds/{id}/resume` |
+| POST/DELETE | soft-delete / hard-delete patterns as elsewhere |
+
+### Resumes
+
+| Method | Path |
+|--------|------|
+| GET/POST | `/resumes` (multipart supported) |
+| GET | `/resumes/{id}/content` stream |
+| POST/DELETE | soft/hard delete |
+
+### Notes & resources
 
 ```
-GET    /admin/users
-POST   /admin/users/{id}/role|enable|disable|soft-delete|restore
+POST /{parentType}/{parentId}/notes
+POST /{parentType}/{parentId}/resources
+```
+
+`parentType ∈ { companies, applications, rounds }`
+
+### Admin
+
+```
+GET  /admin/users
+POST /admin/users/{id}/role|enable|disable|soft-delete|restore
 DELETE /admin/users/{id}
 ```
 
-Sole-admin protections return `409 SOLE_ADMIN`.
+---
 
-## Idempotency
+## 5. Idempotency contract
 
-Send header:
+Header: `Idempotency-Key: <client-uuid>`
 
-```
-Idempotency-Key: <uuid>
-```
+| Scenario | Result |
+|----------|--------|
+| First request | Execute; store status/id/hash |
+| Retry same key + same payload hash | Replay; no duplicate side effects |
+| Same key + different payload | `409 IDEMPOTENCY_CONFLICT` |
+| Parallel in-flight same key | Lock; wait or `IDEMPOTENCY_IN_FLIGHT` |
 
-Recommended/required on creates and destructive actions. Replay returns the original logical result without duplicating rows or object-store puts.
+**Why require clients to send keys instead of server-only dedupe?**  
+Only the client knows which HTTP attempts are “the same user intent.”
 
-## Pagination & clamping
+TTL default 24h (`APP_IDEMPOTENCY_TTL_SECONDS`).
 
-`page` defaults to `0`; `size` defaults to `20` and is **clamped to max 100** to prevent accidental full-table pulls (resource exhaustion).
+---
 
-## Example: create company
+## 6. CSRF for authenticated API calls
 
-```http
-POST /api/v1/companies
-Content-Type: application/json
-Idempotency-Key: 7b1e…
-Cookie: SESSION=…; XSRF-TOKEN=…
-X-XSRF-TOKEN: …
+After login, mutating calls from browsers must send CSRF header matching cookie. Non-browser scripts should either:
 
-{"name":"Acme","website":"https://acme.example"}
-```
+- use the HTML flow, or
+- login then read `XSRF-TOKEN` cookie and echo it.
 
-```http
-HTTP/1.1 201
-{"id":1,"name":"Acme",...}
+**Why keep CSRF on API?** Cookie session = browser-accessible authn.
+
+---
+
+## 7. Versioning policy
+
+URL prefix `/api/v1` is a **compatibility fence**. Breaking changes go to `/api/v2`; v1 stays until deprecated.
+
+| Alternative | Why not for v1 |
+|-------------|----------------|
+| Header versioning only | Harder to explore in browser |
+| No version | Painful first break |
+
+---
+
+## 8. Example session
+
+```bash
+# signup
+curl -c cookies.txt -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: s1' \
+  -d '{"email":"you@example.com","password":"password123"}' \
+  http://localhost:8080/api/v1/auth/signup
+
+# login
+curl -c cookies.txt -b cookies.txt -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"password123"}' \
+  http://localhost:8080/api/v1/auth/login
+
+# create company (add X-XSRF-TOKEN from cookies as needed)
+curl -b cookies.txt -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: c1' \
+  -d '{"name":"Acme"}' \
+  http://localhost:8080/api/v1/companies
 ```

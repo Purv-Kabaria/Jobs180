@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Login — Company Tracker</title>
+    <title>Login — Jobs180</title>
     <link rel="stylesheet" th:href="@{/css/app.css}"/>
 </head>
 <body>
 <div class="auth-wrap panel">
     <h1>Sign in</h1>
-    <p class="muted">Track companies, roles, rounds, and resumes.</p>
+    <p class="muted">Track companies, roles, rounds, and resumes with Jobs180.</p>
     <div th:if="${param.error}" class="flash err">Invalid credentials</div>
     <div th:if="${param.logout}" class="flash ok">Signed out</div>
     <div th:if="${warning}" class="flash warn" th:text="${warning}"></div>
