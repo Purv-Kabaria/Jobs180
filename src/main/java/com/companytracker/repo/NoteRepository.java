@@ -25,6 +25,21 @@ public interface NoteRepository extends JpaRepository<Note, Long> {
 
     List<Note> findByOwner_IdAndDeletionBatchId(Long ownerId, UUID deletionBatchId);
 
+    List<Note> findByCompany_IdAndDeletionBatchId(Long companyId, UUID deletionBatchId);
+
+    List<Note> findByApplication_IdAndDeletionBatchId(Long applicationId, UUID deletionBatchId);
+
+    List<Note> findByRound_IdAndDeletionBatchId(Long roundId, UUID deletionBatchId);
+
     @Query("select n from Note n where n.owner.id = :ownerId")
     List<Note> findAllByOwner(@Param("ownerId") Long ownerId);
+
+    @Query("select n from Note n where n.company.id = :companyId")
+    List<Note> findAllByCompanyId(@Param("companyId") Long companyId);
+
+    @Query("select n from Note n where n.application.id = :applicationId")
+    List<Note> findAllByApplicationId(@Param("applicationId") Long applicationId);
+
+    @Query("select n from Note n where n.round.id = :roundId")
+    List<Note> findAllByRoundId(@Param("roundId") Long roundId);
 }

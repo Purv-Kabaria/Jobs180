@@ -142,7 +142,21 @@ Log admin mutations with actor id + target id. Never log passwords, session ids,
 
 ---
 
-## 10. Renaming notes
+## 10. Testing in CI / local
+
+See **[TESTING.md](TESTING.md)** for the full matrix (unit, Testcontainers IT, MockMvc E2E, performance budgets).
+
+Minimum gate before merge:
+
+```bash
+mvn test
+```
+
+Requires Docker for Postgres/Redis Testcontainers. Performance tests are tagged `@Tag("performance")` and run with the default Surefire include set—expect multi-minute wall time on cold caches.
+
+---
+
+## 11. Renaming notes
 
 Product/repo: **Jobs180**.  
 Postgres DB name may still be `company_tracker` in Compose for continuity—treat as internal identifier until a dedicated rename migration is scheduled.

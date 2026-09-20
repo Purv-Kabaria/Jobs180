@@ -9,7 +9,7 @@ import com.companytracker.security.TrackerUserDetails;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
-import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,22 +29,22 @@ public class DashboardService {
         this.currentUserService = currentUserService;
     }
 
-    public Map<ApplicationStatus, Long> statusCounts() {
+    public Map<String, Long> statusCounts() {
         TrackerUserDetails user = currentUserService.requireUser();
         return statusCountsFor(user.isAdmin() ? "admin:global" : ("user:" + user.getId()), user.isAdmin(), user.getId());
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_CACHE, key = "#cacheKey")
-    public Map<ApplicationStatus, Long> statusCountsFor(String cacheKey, boolean admin, Long userId) {
+    public Map<String, Long> statusCountsFor(String cacheKey, boolean admin, Long userId) {
         List<JobApplicationRepository.StatusCount> rows = admin
                 ? jobApplicationRepository.countByStatusAll()
                 : jobApplicationRepository.countByStatusForOwner(userId);
-        Map<ApplicationStatus, Long> map = new EnumMap<>(ApplicationStatus.class);
+        Map<String, Long> map = new LinkedHashMap<>();
         for (ApplicationStatus status : ApplicationStatus.values()) {
-            map.put(status, 0L);
+            map.put(status.name(), 0L);
         }
         for (JobApplicationRepository.StatusCount row : rows) {
-            map.put(row.getStatus(), row.getCnt());
+            map.put(row.getStatus().name(), row.getCnt());
         }
         return map;
     }

@@ -25,6 +25,21 @@ public interface ResourceItemRepository extends JpaRepository<ResourceItem, Long
 
     List<ResourceItem> findByOwner_IdAndDeletionBatchId(Long ownerId, UUID deletionBatchId);
 
+    List<ResourceItem> findByCompany_IdAndDeletionBatchId(Long companyId, UUID deletionBatchId);
+
+    List<ResourceItem> findByApplication_IdAndDeletionBatchId(Long applicationId, UUID deletionBatchId);
+
+    List<ResourceItem> findByRound_IdAndDeletionBatchId(Long roundId, UUID deletionBatchId);
+
     @Query("select r from ResourceItem r where r.owner.id = :ownerId")
     List<ResourceItem> findAllByOwner(@Param("ownerId") Long ownerId);
+
+    @Query("select r from ResourceItem r where r.company.id = :companyId")
+    List<ResourceItem> findAllByCompanyId(@Param("companyId") Long companyId);
+
+    @Query("select r from ResourceItem r where r.application.id = :applicationId")
+    List<ResourceItem> findAllByApplicationId(@Param("applicationId") Long applicationId);
+
+    @Query("select r from ResourceItem r where r.round.id = :roundId")
+    List<ResourceItem> findAllByRoundId(@Param("roundId") Long roundId);
 }

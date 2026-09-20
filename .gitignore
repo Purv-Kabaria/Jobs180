@@ -11,3 +11,4 @@ target/
 .env
 .DS_Store
 uploads/
+.serena/

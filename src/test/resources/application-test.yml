@@ -1,0 +1,40 @@
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  thymeleaf:
+    cache: false
+  session:
+    store-type: redis
+    timeout: 30m
+
+app:
+  storage-type: local
+  upload-max-bytes: 1048576
+  idempotency-ttl-seconds: 3600
+  signups-enabled: true
+  cors-allowed-origins:
+  display-zone: UTC
+  s3:
+    endpoint: http://localhost:9000
+    bucket: jobs180-test
+    access-key: test
+    secret-key: test
+    region: us-east-1
+    path-style: true
+  rate-limit:
+    login-per-min: 1000
+    signup-per-min: 1000
+    write-per-min: 5000
+    upload-per-min: 1000
+    ip-per-min: 10000
+
+logging:
+  level:
+    root: WARN
+    com.companytracker: INFO

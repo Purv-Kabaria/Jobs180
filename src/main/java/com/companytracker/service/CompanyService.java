@@ -49,9 +49,13 @@ public class CompanyService {
         String query = (q == null || q.isBlank()) ? null : q.trim();
         TrackerUserDetails user = currentUserService.requireUser();
         if (user.isAdmin()) {
-            return companyRepository.searchActiveAll(query, pageable);
+            return query == null
+                    ? companyRepository.findActiveAll(pageable)
+                    : companyRepository.searchActiveAll(query, pageable);
         }
-        return companyRepository.searchActiveByOwner(user.getId(), query, pageable);
+        return query == null
+                ? companyRepository.findActiveByOwner(user.getId(), pageable)
+                : companyRepository.searchActiveByOwner(user.getId(), query, pageable);
     }
 
     public Company getActive(Long id) {

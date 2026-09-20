@@ -17,7 +17,7 @@
         <div class="grid">
             <div class="stat" th:each="status : ${statuses}">
                 <span class="muted" th:text="${status}">STATUS</span>
-                <strong th:text="${statusCounts[status]} ?: 0">0</strong>
+                <strong th:text="${statusCounts[status.name()]} ?: 0">0</strong>
             </div>
         </div>
     </section>

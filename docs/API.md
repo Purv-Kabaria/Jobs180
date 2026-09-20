@@ -123,7 +123,7 @@ One auth story for UI and API; immediate revoke; no token refresh machinery.
 
 | Method | Path |
 |--------|------|
-| GET/POST | `/resumes` (multipart supported) |
+| GET/POST | `/resumes` — JSON body `{label, externalUrl}` **or** multipart (`label`, `externalUrl`, `file`) |
 | GET | `/resumes/{id}/content` stream |
 | POST/DELETE | soft/hard delete |
 

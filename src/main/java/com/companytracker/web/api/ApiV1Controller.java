@@ -24,6 +24,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -260,12 +261,20 @@ public class ApiV1Controller {
         return Map.of("content", resumeService.listMineOrAdmin(null).stream().map(this::resumeDto).toList());
     }
 
-    @PostMapping(value = "/resumes", consumes = {"multipart/form-data", "application/json"})
-    public ResponseEntity<?> createResume(@RequestParam(required = false) String label,
-                                          @RequestParam(required = false) String externalUrl,
-                                          @RequestPart(value = "file", required = false) MultipartFile file,
-                                          @RequestHeader(value = "Idempotency-Key", required = false) String idemKey) {
+    @PostMapping(value = "/resumes", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> createResumeMultipart(@RequestParam String label,
+                                                   @RequestParam(required = false) String externalUrl,
+                                                   @RequestPart(value = "file", required = false) MultipartFile file,
+                                                   @RequestHeader(value = "Idempotency-Key", required = false) String idemKey) {
         Resume resume = resumeService.create(label, externalUrl, file, idemOrNew(idemKey));
+        return ResponseEntity.status(201).body(resumeDto(resume));
+    }
+
+    @PostMapping(value = "/resumes", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> createResumeJson(@Valid @RequestBody Forms.ResumeForm form,
+                                              @RequestHeader(value = "Idempotency-Key", required = false) String idemKey) {
+        Resume resume = resumeService.create(form.getLabel(), form.getExternalUrl(), null,
+                idemKey != null ? idemKey : form.getIdempotencyKey());
         return ResponseEntity.status(201).body(resumeDto(resume));
     }
 

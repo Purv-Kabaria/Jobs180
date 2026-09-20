@@ -160,11 +160,35 @@ public class CascadeDeleteService {
         }
         jobApplicationRepository.findByCompany_IdAndDeletionBatchId(company.getId(), batch).forEach(app -> {
             roundRepository.findByApplication_IdAndDeletionBatchId(app.getId(), batch).forEach(r -> {
+                noteRepository.findByRound_IdAndDeletionBatchId(r.getId(), batch).forEach(n -> {
+                    n.restore();
+                    noteRepository.save(n);
+                });
+                resourceItemRepository.findByRound_IdAndDeletionBatchId(r.getId(), batch).forEach(res -> {
+                    res.restore();
+                    resourceItemRepository.save(res);
+                });
                 r.restore();
                 roundRepository.save(r);
             });
+            noteRepository.findByApplication_IdAndDeletionBatchId(app.getId(), batch).forEach(n -> {
+                n.restore();
+                noteRepository.save(n);
+            });
+            resourceItemRepository.findByApplication_IdAndDeletionBatchId(app.getId(), batch).forEach(res -> {
+                res.restore();
+                resourceItemRepository.save(res);
+            });
             app.restore();
             jobApplicationRepository.save(app);
+        });
+        noteRepository.findByCompany_IdAndDeletionBatchId(company.getId(), batch).forEach(n -> {
+            n.restore();
+            noteRepository.save(n);
+        });
+        resourceItemRepository.findByCompany_IdAndDeletionBatchId(company.getId(), batch).forEach(res -> {
+            res.restore();
+            resourceItemRepository.save(res);
         });
         company.restore();
         companyRepository.save(company);
@@ -198,10 +222,10 @@ public class CascadeDeleteService {
     @Transactional
     public void hardDeleteCompany(Company company) {
         List<String> keys = new ArrayList<>();
-        for (Note n : noteRepository.findActiveByCompany(company.getId())) {
+        for (Note n : noteRepository.findAllByCompanyId(company.getId())) {
             noteRepository.delete(n);
         }
-        for (ResourceItem r : resourceItemRepository.findActiveByCompany(company.getId())) {
+        for (ResourceItem r : resourceItemRepository.findAllByCompanyId(company.getId())) {
             if (r.getStorageKey() != null) {
                 keys.add(r.getStorageKey());
             }
@@ -225,8 +249,8 @@ public class CascadeDeleteService {
         for (Round round : roundRepository.findAllByApplicationId(app.getId())) {
             hardDeleteRound(round, keys);
         }
-        noteRepository.findActiveByApplication(app.getId()).forEach(noteRepository::delete);
-        for (ResourceItem r : resourceItemRepository.findActiveByApplication(app.getId())) {
+        noteRepository.findAllByApplicationId(app.getId()).forEach(noteRepository::delete);
+        for (ResourceItem r : resourceItemRepository.findAllByApplicationId(app.getId())) {
             if (r.getStorageKey() != null) {
                 keys.add(r.getStorageKey());
             }
@@ -243,8 +267,8 @@ public class CascadeDeleteService {
     }
 
     private void hardDeleteRound(Round round, List<String> keys) {
-        noteRepository.findActiveByRound(round.getId()).forEach(noteRepository::delete);
-        for (ResourceItem r : resourceItemRepository.findActiveByRound(round.getId())) {
+        noteRepository.findAllByRoundId(round.getId()).forEach(noteRepository::delete);
+        for (ResourceItem r : resourceItemRepository.findAllByRoundId(round.getId())) {
             if (r.getStorageKey() != null) keys.add(r.getStorageKey());
             resourceItemRepository.delete(r);
         }

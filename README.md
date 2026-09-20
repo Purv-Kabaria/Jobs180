@@ -1,100 +1,93 @@
 # Jobs180
 
-**Jobs180** is a self-hostable **job application tracker** for individuals (and small teams) who need a durable system of record for companies, roles, interview rounds, resumes, notes, and prep resources—without handing that data to a third-party SaaS.
+**Jobs180** is a self-hostable job application tracker for companies, roles, interview rounds, resumes, notes, and prep resources.
 
-It ships as a single **Spring Boot** application with **server-rendered UI** (Thymeleaf) and a parallel **versioned JSON API** (`/api/v1`), backed by **PostgreSQL**, **Redis**, and **MinIO** (S3-compatible object storage).
+It is a single **Spring Boot** app with a **Thymeleaf** UI and a versioned JSON API (`/api/v1`), backed by **PostgreSQL**, **Redis**, and **MinIO** (S3-compatible object storage).
 
-> Product name: **Jobs180**  
-> Maven artifact: `jobs180`  
-> Java package (implementation namespace): `com.companytracker` (stable internal module path; product branding is Jobs180 everywhere user-facing)  
-> Repository: [github.com/Purv-Kabaria/Jobs180](https://github.com/Purv-Kabaria/Jobs180)
+| | |
+|--|--|
+| Product | Jobs180 |
+| Maven artifact | `jobs180` |
+| Java package | `com.companytracker` |
+| Repository | [github.com/Purv-Kabaria/Jobs180](https://github.com/Purv-Kabaria/Jobs180) |
 
 ---
 
 ## Table of contents
 
-1. [Why Jobs180 exists](#1-why-jobs180-exists)
+1. [Overview](#1-overview)
 2. [Who it is for](#2-who-it-is-for)
-3. [What you get (feature map)](#3-what-you-get-feature-map)
+3. [Features](#3-features)
 4. [Quick start](#4-quick-start)
-5. [Architecture at a glance](#5-architecture-at-a-glance)
-6. [Why this stack (defended choices)](#6-why-this-stack-defended-choices)
-7. [Domain model (how thinking maps to tables)](#7-domain-model-how-thinking-maps-to-tables)
-8. [Security model](#8-security-model)
+5. [Architecture](#5-architecture)
+6. [Stack](#6-stack)
+7. [Domain model](#7-domain-model)
+8. [Security](#8-security)
 9. [API & UI](#9-api--ui)
-10. [Configuration reference](#10-configuration-reference)
-11. [Operations: backup, scale, failure modes](#11-operations-backup-scale-failure-modes)
+10. [Configuration](#10-configuration)
+11. [Operations](#11-operations)
 12. [Development & tests](#12-development--tests)
 13. [Repository layout](#13-repository-layout)
-14. [Documentation map](#14-documentation-map)
+14. [Documentation](#14-documentation)
 15. [Roadmap / non-goals](#15-roadmap--non-goals)
-16. [License / contributing posture](#16-license--contributing-posture)
+16. [Contributing](#16-contributing)
 
 ---
 
-## 1. Why Jobs180 exists
+## 1. Overview
 
-Job hunting is a **stateful workflow**: many companies, many role variants, many resume versions, many rounds, and a pile of unstructured notes/links. Spreadsheets fail because:
+Jobs180 is a personal system of record for a job search: hierarchy (company → role → round), private data, file attachments, retries, concurrent edits, and admin lifecycle.
 
-- they do not model **hierarchy** (company → role → round) cleanly;
-- they do not enforce **privacy** if you ever share a file;
-- they do not handle **file attachments** with access control;
-- they do not survive **retries**, **concurrent edits**, or **admin lifecycle** events.
-
-Jobs180 exists to be a **personal system of record** with production-shaped engineering: sessions that scale, object storage that scales, rate limits, idempotent writes, soft-delete with restore, and explicit admin safety (you cannot demote the last admin and lock yourself out).
-
-### Naming
-
-**Jobs180** signals a full-circle job search system: track the loop from wishlist → interviews → offer/outcome, with enough structure to review what worked 180° later—not a generic “company CRM.”
+- Redis-backed sessions (multi-replica ready)
+- Object storage for resumes and resources
+- Rate limits and idempotent writes
+- Soft-delete with restore; hard purge when needed
+- Sole-admin protection (cannot remove the last enabled admin)
 
 ---
 
 ## 2. Who it is for
 
-| Audience | Fit |
-|----------|-----|
-| Individual job seekers | Primary. Private data, resume library, round tracking |
-| Friends/family sharing one deployment | Works: each user isolated; first user is admin |
-| Recruiting agencies / multi-tenant SaaS | **Not** the v1 target (no org workspaces, billing, or cross-user sharing) |
-| Enterprise SSO shops | Not yet (no OAuth/SAML in v1) |
+| Audience | Notes |
+|----------|-------|
+| Individual job seekers | Primary audience |
+| Small shared deployments | Each user is isolated; first user is admin |
+| Agencies / multi-tenant SaaS | Out of scope for v1 |
+| Enterprise SSO | Out of scope for v1 (no OAuth/SAML yet) |
 
 ---
 
-## 3. What you get (feature map)
+## 3. Features
 
 ### Accounts & roles
 
 - Email + password signup/login
-- **First registered user becomes `ADMIN`**; later users are `USER`
-- Admin: promote/demote, enable/disable, soft-delete/restore/hard-purge users
-- Sole-admin protections (cannot demote/disable/delete the last enabled admin)
-- Mid-session revoke when admin changes a logged-in user’s status/role
+- First registered user is `ADMIN`; later users are `USER`
+- Admin can promote/demote, enable/disable, soft-delete/restore/hard-purge users
+- Sole-admin guards on demote/disable/delete
+- Sessions revoked when an admin changes a user’s status or role
 
 ### Job-hunt data
 
-- **Companies** (can exist with zero roles—research-first)
-- **Applications / roles** with JD text/link, work mode, comp, dates, referral, source, status
-- **Rounds** with schedule, outcome, interviewers, attached resume
-- **Resume library** (upload PDF/DOC/DOCX and/or external URL); attach to rounds
-- **Notes** & **resources** on company, application, *and* round
-- Soft delete → archive/restore via deletion batch → hard purge (DB + object store)
+- Companies (including companies with no roles yet)
+- Applications with JD text/link, work mode, compensation, dates, referral, source, status
+- Rounds with schedule, outcome, interviewers, optional resume attachment
+- Resume library (PDF/DOC/DOCX upload and/or external URL)
+- Notes and resources on company, application, and round
+- Soft delete → restore by deletion batch → hard purge (DB + object store)
 
-### Product surfaces
+### Surfaces
 
 - Dashboard (status counts + upcoming rounds)
-- Search/filter applications
-- Upcoming rounds list
-- Thymeleaf UI + `/api/v1` JSON API
+- Search/filter applications; upcoming rounds list
+- Thymeleaf UI and `/api/v1` JSON API
 
-### Platform features
+### Platform
 
-- Redis sessions (multi-replica ready)
-- Redis cache (dashboard)
-- Redis rate limits
-- Redis idempotency keys
+- Redis: sessions, dashboard cache, rate limits, idempotency
 - MinIO/S3 file storage with streaming download
-- Docker Compose one-command bring-up
-- Flyway migrations; Hibernate validate-only in prod
+- Docker Compose bring-up
+- Flyway migrations; Hibernate `validate` in prod
 
 ---
 
@@ -103,7 +96,7 @@ Jobs180 exists to be a **personal system of record** with production-shaped engi
 ### Prerequisites
 
 - Docker + Docker Compose
-- Ports free: `8080`, `5432`, `6379`, `9000`, `9001`
+- Ports: `8080`, `5432`, `6379`, `9000`, `9001`
 
 ### Run
 
@@ -113,33 +106,33 @@ cd Jobs180
 docker compose up --build
 ```
 
-Open **http://localhost:8080** → **Sign up**. The first account is admin.
+Open **http://localhost:8080** and sign up. The first account is admin.
 
-| Service | Where |
-|---------|--------|
-| Jobs180 app | http://localhost:8080 |
+| Service | URL / connection |
+|---------|------------------|
+| App | http://localhost:8080 |
 | Postgres | `localhost:5432` — db `company_tracker`, user/pass `tracker` / `tracker` |
 | Redis | `localhost:6379` |
 | MinIO API | http://localhost:9000 |
 | MinIO console | http://localhost:9001 — `minioadmin` / `minioadmin` |
 
-> Note: the Postgres database name remains `company_tracker` for migration continuity in this codebase revision. The **product** name is Jobs180; renaming the physical DB is a future ops migration, not required to use the app.
+The Postgres database name is still `company_tracker` in this revision. The product name is Jobs180.
 
-### First 5 minutes
+### First steps
 
 1. Sign up as admin.
 2. Create a company.
-3. Add a role/application under it; set status.
-4. Upload a resume in **Resumes**.
+3. Add a role/application; set status.
+4. Upload a resume under **Resumes**.
 5. Add a round; attach the resume; add notes/resources.
 
 ---
 
-## 5. Architecture at a glance
+## 5. Architecture
 
 ```
                  ┌─────────────────────────────────────────┐
-   Browser/API ─►│  Jobs180 (Spring Boot, stateless app)   │
+   Browser/API ─►│  Jobs180 (Spring Boot)                  │
                  │  Thymeleaf MVC  +  /api/v1 REST         │
                  └───────┬───────────────┬─────────┬───────┘
                          │               │         │
@@ -150,47 +143,30 @@ Open **http://localhost:8080** → **Sign up**. The first account is admin.
                                       idempotency
 ```
 
-**Mental model:** Postgres is truth; Redis is shared *coordination* for ephemeral cross-node concerns; MinIO/S3 is the blob plane. The app process holds no must-keep local state (except optional test-only local storage).
+Postgres holds durable data. Redis holds shared ephemeral state (sessions, cache, rate limits, idempotency). MinIO/S3 holds files. App instances are otherwise stateless.
 
-Deep dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
----
-
-## 6. Why this stack (defended choices)
-
-This section is the “why X instead of A/B/C” summary. Full narratives live in the docs.
-
-### Application framework
-
-| Choice | Rejected alternatives | Why Jobs180 picked this |
-|--------|----------------------|-------------------------|
-| **Spring Boot 3 + Java 21** | Node/Express, Django, Rails, Quarkus, Micronaut | Security/session/JPA/Actuator ecosystem is battle-tested; Java 21 LTS; team familiarity with Spring Security patterns |
-| **Monolith** | Microservices from day one | One product, one deployable; distributed systems tax is unjustified at this scale |
-| **Thymeleaf SSR + REST** | React/Vue SPA-only; HTMX-only; mobile-first | SSR gives CSRF/forms/sessions “for free”; REST shares services for future clients without rewriting rules |
-
-### Data & files
-
-| Choice | Rejected | Why |
-|--------|----------|-----|
-| **PostgreSQL** | MySQL, MongoDB, SQLite-only | Relational integrity (FK/CHECK), partial indexes, `FOR UPDATE` locks, ops maturity |
-| **Flyway** | Liquibase, Hibernate `ddl-auto=update` | Reviewable SQL migrations; prod uses `validate` only |
-| **MinIO / S3 API** | DB BYTEA, local disk only, GridFS | Multi-node safe; cheap large objects; env-only swap to AWS/R2 |
-| **Redis** | In-memory sessions only, JDBC sessions | Horizontal scale without sticky sessions; shared rate limits/idempotency |
-
-### Security posture
-
-| Choice | Rejected | Why |
-|--------|----------|-----|
-| **Server sessions in Redis** | JWT access tokens as primary | Easy revoke; no “logout is client honor system”; fits SSR cookie model |
-| **BCrypt** | plaintext, MD5/SHA, scrypt-only | Slow hash default in Spring Security; adequate for password auth |
-| **404 for non-owners** | 403 Forbidden | Reduces resource existence leaks |
-| **Sole-admin guards** | Allow self-demote always | Prevents irreversible lockout on self-hosted boxes |
-
-See [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/SECURITY.md](docs/SECURITY.md).
+Details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
-## 7. Domain model (how thinking maps to tables)
+## 6. Stack
+
+| Area | Choice |
+|------|--------|
+| Runtime | Java 21, Spring Boot 3 |
+| Shape | Single deployable monolith |
+| UI + API | Thymeleaf SSR and `/api/v1` REST (shared services) |
+| Database | PostgreSQL + Flyway |
+| Files | MinIO / S3 API |
+| Coordination | Redis (sessions, cache, rate limits, idempotency) |
+| Passwords | BCrypt |
+| Ownership misses | HTTP 404 (not 403) |
+
+Longer decision notes: [docs/DECISIONS.md](docs/DECISIONS.md), [docs/SECURITY.md](docs/SECURITY.md).
+
+---
+
+## 7. Domain model
 
 ```
 User
@@ -204,28 +180,28 @@ User
                 └── Notes / Resources
 ```
 
-**Statuses (application):** Wishlist → Applied → OA → Interviewing → Offer / Rejected / Withdrawn / Ghosted / On Hold  
+**Application statuses:** Wishlist → Applied → OA → Interviewing → Offer / Rejected / Withdrawn / Ghosted / On Hold  
 
 **Round outcomes:** Pending / Pass / Fail / Skipped  
 
-**Soft delete** uses `deleted_at` + `deletion_batch_id` so restore does not accidentally revive older archives.
+Soft delete uses `deleted_at` + `deletion_batch_id` so restore is scoped to one deletion batch.
 
-Full schema reasoning: [docs/DATA_MODEL.md](docs/DATA_MODEL.md).
+Schema: [docs/DATA_MODEL.md](docs/DATA_MODEL.md).
 
 ---
 
-## 8. Security model
+## 8. Security
 
-- Authentication: email/password → Redis-backed session cookie
-- Authorization: Spring roles + service-level ownership checks
-- CSRF on mutating requests (API login/signup exempt to bootstrap sessions)
-- XSS mitigated via Thymeleaf escaping + CSP
+- Email/password auth; Redis session cookie
+- Spring roles plus ownership checks in the service layer
+- CSRF on mutating requests (API login/signup exempt)
+- Thymeleaf escaping + CSP
 - CORS deny-by-default
 - Rate limits (login/signup/write/upload/IP)
 - Security stamp + session wipe on disable/delete/role change
-- Upload allowlisting + size caps + server-generated object keys
+- Upload allowlisting, size caps, server-generated object keys
 
-Deep dive: [docs/SECURITY.md](docs/SECURITY.md), concepts: [docs/CONCEPTS.md](docs/CONCEPTS.md).
+More: [docs/SECURITY.md](docs/SECURITY.md), [docs/CONCEPTS.md](docs/CONCEPTS.md).
 
 ---
 
@@ -233,73 +209,79 @@ Deep dive: [docs/SECURITY.md](docs/SECURITY.md), concepts: [docs/CONCEPTS.md](do
 
 ### UI
 
-Server-rendered pages under `/dashboard`, `/companies`, `/applications`, `/rounds`, `/resumes`, `/search`, `/upcoming`, `/admin/users`. Forms use **Post/Redirect/Get** and hidden idempotency keys.
+Pages under `/dashboard`, `/companies`, `/applications`, `/rounds`, `/resumes`, `/search`, `/upcoming`, `/admin/users`. Forms use Post/Redirect/Get and idempotency keys.
 
 ### API
 
-Base path: **`/api/v1`**. Soft-delete/restore are `POST` actions; `DELETE` means hard purge. Send `Idempotency-Key` on creates and destructive actions.
+Base path: **`/api/v1`**. Soft-delete/restore are `POST` actions; `DELETE` is hard purge. Send `Idempotency-Key` on creates and destructive actions.
 
-Full route map & conventions: [docs/API.md](docs/API.md).
+Routes: [docs/API.md](docs/API.md).
 
 ---
 
-## 10. Configuration reference
+## 10. Configuration
 
-Copy [`.env.example`](.env.example). Everything important is environment-driven (12-factor).
+Copy [`.env.example`](.env.example). Configuration is environment-driven.
 
 | Variable group | Purpose |
 |----------------|---------|
-| `SPRING_DATASOURCE_*` | Postgres connectivity + pool |
-| `SPRING_DATA_REDIS_*` | Redis host/port |
+| `SPRING_DATASOURCE_*` | Postgres |
+| `SPRING_DATA_REDIS_*` | Redis |
 | `SPRING_PROFILES_ACTIVE` | Use `prod` in Compose/cloud |
 | `APP_STORAGE_TYPE` | `s3` (default) or `local` (tests) |
-| `APP_S3_*` | Endpoint, bucket `jobs180`, keys, region, path-style |
+| `APP_S3_*` | Endpoint, bucket, keys, region, path-style |
 | `APP_UPLOAD_MAX_BYTES` | Multipart cap |
-| `APP_IDEMPOTENCY_TTL_SECONDS` | Idempotency record TTL |
+| `APP_IDEMPOTENCY_TTL_SECONDS` | Idempotency TTL |
 | `APP_RATE_LIMIT_*` | Per-action limits |
 | `APP_CORS_ALLOWED_ORIGINS` | Empty = deny cross-origin |
-| `APP_SIGNUPS_ENABLED` | Incident kill-switch |
-| `JAVA_OPTS` | Heap / JVM flags |
+| `APP_SIGNUPS_ENABLED` | Signup kill-switch |
+| `JAVA_OPTS` | JVM flags |
 
-Ops detail: [docs/OPERATIONS.md](docs/OPERATIONS.md).
+Ops: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ---
 
-## 11. Operations: backup, scale, failure modes
+## 11. Operations
 
 ### Backup
 
-1. Postgres dump/snapshot (required)
-2. MinIO/S3 bucket (required if you care about resumes)
+1. Postgres dump/snapshot
+2. MinIO/S3 bucket (resumes/resources)
 3. Redis optional (sessions/cache; users re-login if lost)
 
-### Scale-out checklist
+### Scale-out
 
-- App replicas: **stateless**
-- Redis: shared (sessions + RL + idempotency + cache)
-- Postgres: shared primary
-- Files: **S3/MinIO only** (local disk is wrong for multi-node)
+- App replicas: stateless
+- Shared Redis, Postgres primary, and S3/MinIO for files
+- Do not use local disk storage for multi-node
 
-### Failure modes Jobs180 is designed for
+### Failure behavior
 
 | Event | Behavior |
 |-------|----------|
-| App pod dies | Other replicas serve; sessions in Redis |
-| Admin disables logged-in user | Sessions revoked; next request forced re-login |
-| Double-submit create | Idempotency key replays same result |
-| Login brute force | 429 after Redis counter threshold |
-| Redis down | Readiness should fail; do not silently fall back to local sessions in prod |
+| App instance dies | Other replicas continue; sessions in Redis |
+| Admin disables a logged-in user | Sessions revoked |
+| Double-submit create | Idempotency key returns the same result |
+| Login brute force | 429 after rate-limit threshold |
+| Redis down | Readiness fails; do not fall back to local sessions in prod |
 
 ---
 
 ## 12. Development & tests
 
+Guide: [docs/TESTING.md](docs/TESTING.md).
+
 ```bash
-# unit tests (JDK 21)
-docker run --rm -v "${PWD}:/app" -w /app maven:3.9.9-eclipse-temurin-21-alpine mvn test
+# Full suite — Docker required for Testcontainers (Postgres 16 + Redis 7)
+mvn test
 ```
 
-Covered today: sole-admin demotion, ownership 404, idempotency replay/conflict, email normalization.
+| Layer | Coverage |
+|-------|----------|
+| Unit | Auth, sole-admin, ownership, optimistic lock, idempotency, uploads, filters |
+| Integration | Cascades, Redis idempotency, isolation, session revoke |
+| E2E (MockMvc) | Signup → company → app → round → notes; CSRF; admin gate; MVC login |
+| Performance | List/search budgets under hundreds of rows |
 
 ---
 
@@ -307,12 +289,12 @@ Covered today: sole-admin demotion, ownership 404, idempotency replay/conflict, 
 
 ```
 Jobs180/
-  docs/                 # Deep documentation (start here after README)
+  docs/
   src/main/java/com/companytracker/
     config/ security/ storage/ domain/ repo/ service/
     web/mvc/ web/api/ web/dto/ web/error/
   src/main/resources/
-    db/migration/       # Flyway
+    db/migration/
     templates/ static/
   src/test/java/
   docker-compose.yml
@@ -324,39 +306,36 @@ Jobs180/
 
 ---
 
-## 14. Documentation map
+## 14. Documentation
 
-| Document | Read when you want… |
-|----------|---------------------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | End-to-end system design + defended layering |
-| [docs/CONCEPTS.md](docs/CONCEPTS.md) | CS/web fundamentals mapped onto Jobs180 |
-| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Tables, constraints, cascades, indexes |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, authn/authz, headers, limits |
-| [docs/API.md](docs/API.md) | REST surface, conventions, idempotency |
+| Document | Contents |
+|----------|----------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design |
+| [docs/CONCEPTS.md](docs/CONCEPTS.md) | Concepts mapped to Jobs180 |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Tables, constraints, indexes |
+| [docs/SECURITY.md](docs/SECURITY.md) | Authn/authz, headers, limits |
+| [docs/API.md](docs/API.md) | REST surface |
+| [docs/TESTING.md](docs/TESTING.md) | Test suite and performance budgets |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Deploy, backup, scale, incidents |
-| [docs/DECISIONS.md](docs/DECISIONS.md) | ADR-style choice log (X vs A/B/C) |
-| [docs/PRODUCT.md](docs/PRODUCT.md) | Product rules, personas, edge-case catalog |
-| [docs/REQUEST_LIFECYCLE.md](docs/REQUEST_LIFECYCLE.md) | One request through filters → DB → response |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Decision log |
+| [docs/PRODUCT.md](docs/PRODUCT.md) | Product rules and edge cases |
+| [docs/REQUEST_LIFECYCLE.md](docs/REQUEST_LIFECYCLE.md) | Request path through the stack |
 
 ---
 
 ## 15. Roadmap / non-goals
 
-**Intentionally not in v1**
+**Not in v1**
 
-- OAuth/SAML, email verification, password reset mail
+- OAuth/SAML, email verification, password-reset mail
 - Shared company workspaces / collaboration
-- SPA-only frontend rewrite
+- SPA-only frontend
 - Antivirus pipeline for uploads
 - GraphQL
-- Billing / multi-tenant SaaS packaging
+- Billing / multi-tenant packaging
 
 ---
 
-## 16. License / contributing posture
+## 16. Contributing
 
-This repository is the Jobs180 product codebase. Prefer discussion via issues/PRs on GitHub. Keep changes aligned with the decision log: privacy-first, service-layer invariants, env-based deployability.
-
----
-
-**Jobs180** — track the whole job loop, with engineering that does not fall apart when you actually rely on it.
+Open issues and PRs on GitHub. Prefer changes that keep privacy defaults, service-layer invariants, and env-based deployability.

@@ -70,7 +70,7 @@ public class IdempotencyService {
             redisTemplate.opsForValue().set(
                     recordKey,
                     write(record),
-                    Duration.ofSeconds(properties.idempotencyTtlSeconds())
+                    Duration.ofSeconds(Math.max(1, properties.idempotencyTtlSeconds()))
             );
             return result;
         } finally {

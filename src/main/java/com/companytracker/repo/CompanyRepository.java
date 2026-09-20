@@ -16,10 +16,16 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
     @Query("select c from Company c where c.id = :id and c.deletedAt is null")
     Optional<Company> findActiveById(@Param("id") Long id);
 
-    @Query("select c from Company c where c.owner.id = :ownerId and c.deletedAt is null and (:q is null or lower(c.name) like lower(concat('%', :q, '%')))")
+    @Query("select c from Company c where c.owner.id = :ownerId and c.deletedAt is null")
+    Page<Company> findActiveByOwner(@Param("ownerId") Long ownerId, Pageable pageable);
+
+    @Query("select c from Company c where c.owner.id = :ownerId and c.deletedAt is null and lower(c.name) like lower(concat('%', :q, '%'))")
     Page<Company> searchActiveByOwner(@Param("ownerId") Long ownerId, @Param("q") String q, Pageable pageable);
 
-    @Query("select c from Company c where c.deletedAt is null and (:q is null or lower(c.name) like lower(concat('%', :q, '%')))")
+    @Query("select c from Company c where c.deletedAt is null")
+    Page<Company> findActiveAll(Pageable pageable);
+
+    @Query("select c from Company c where c.deletedAt is null and lower(c.name) like lower(concat('%', :q, '%'))")
     Page<Company> searchActiveAll(@Param("q") String q, Pageable pageable);
 
     @Query("select c from Company c where c.owner.id = :ownerId and c.deletedAt is not null")

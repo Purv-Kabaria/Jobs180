@@ -97,6 +97,25 @@ public class SecurityConfig {
                         .requestMatchers("/login", "/signup", "/api/v1/auth/signup", "/api/v1/auth/login").permitAll()
                         .requestMatchers("/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            if (request.getRequestURI() != null && request.getRequestURI().startsWith("/api/")) {
+                                response.setStatus(401);
+                                response.setContentType("application/json");
+                                response.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"Authentication required\"}");
+                            } else {
+                                response.sendRedirect(request.getContextPath() + "/login");
+                            }
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            if (request.getRequestURI() != null && request.getRequestURI().startsWith("/api/")) {
+                                response.setStatus(403);
+                                response.setContentType("application/json");
+                                response.getWriter().write("{\"code\":\"FORBIDDEN\",\"message\":\"Access denied\"}");
+                            } else {
+                                response.sendRedirect(request.getContextPath() + "/login?error=forbidden");
+                            }
+                        }))
                 .formLogin(form -> form
                         .loginPage("/login")
                         .loginProcessingUrl("/login")
