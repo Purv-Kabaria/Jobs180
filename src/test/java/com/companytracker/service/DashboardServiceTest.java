@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -25,15 +28,16 @@ class DashboardServiceTest {
     @Mock JobApplicationRepository jobApplicationRepository;
     @Mock RoundService roundService;
     @Mock CurrentUserService currentUserService;
+    @Mock DashboardService self;
     DashboardService dashboardService;
 
     @BeforeEach
     void setUp() {
-        dashboardService = new DashboardService(jobApplicationRepository, roundService, currentUserService);
+        dashboardService = new DashboardService(jobApplicationRepository, roundService, currentUserService, self);
     }
 
     @Test
-    void statusCountsForUser() {
+    void statusCountsDelegatesThroughProxyForCache() {
         UserAccount u = new UserAccount();
         u.setEmail("a@b.com");
         u.setPasswordHash("h");
@@ -48,12 +52,20 @@ class DashboardServiceTest {
             throw new RuntimeException(e);
         }
         when(currentUserService.requireUser()).thenReturn(new TrackerUserDetails(u));
+        when(self.statusCountsFor(anyString(), anyBoolean(), anyLong())).thenReturn(Map.of("APPLIED", 3L));
+
+        Map<String, Long> counts = dashboardService.statusCounts();
+        assertEquals(3L, counts.get("APPLIED"));
+    }
+
+    @Test
+    void statusCountsForAggregatesRows() {
         when(jobApplicationRepository.countByStatusForOwner(7L)).thenReturn(List.of(
                 status(ApplicationStatus.APPLIED, 3),
                 status(ApplicationStatus.WISHLIST, 1)
         ));
 
-        Map<String, Long> counts = dashboardService.statusCounts();
+        Map<String, Long> counts = dashboardService.statusCountsFor("user:7", false, 7L);
         assertEquals(3L, counts.get("APPLIED"));
         assertEquals(1L, counts.get("WISHLIST"));
     }

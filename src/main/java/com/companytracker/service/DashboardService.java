@@ -7,6 +7,7 @@ import com.companytracker.repo.JobApplicationRepository;
 import com.companytracker.security.CurrentUserService;
 import com.companytracker.security.TrackerUserDetails;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -19,19 +20,25 @@ public class DashboardService {
     private final JobApplicationRepository jobApplicationRepository;
     private final RoundService roundService;
     private final CurrentUserService currentUserService;
+    private final DashboardService self;
 
     public DashboardService(
             JobApplicationRepository jobApplicationRepository,
             RoundService roundService,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            @Lazy DashboardService self) {
         this.jobApplicationRepository = jobApplicationRepository;
         this.roundService = roundService;
         this.currentUserService = currentUserService;
+        this.self = self;
     }
 
     public Map<String, Long> statusCounts() {
         TrackerUserDetails user = currentUserService.requireUser();
-        return statusCountsFor(user.isAdmin() ? "admin:global" : ("user:" + user.getId()), user.isAdmin(), user.getId());
+        return self.statusCountsFor(
+                user.isAdmin() ? "admin:global" : ("user:" + user.getId()),
+                user.isAdmin(),
+                user.getId());
     }
 
     @Cacheable(cacheNames = CacheConfig.DASHBOARD_CACHE, key = "#cacheKey")

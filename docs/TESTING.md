@@ -87,14 +87,22 @@ mvn test -Dtest='ApiFullFlowE2ETest'        # one class
 - Rate limit filter returns `429` for API when over quota
 
 ### Performance budgets (asserted)
-| Scenario | Volume | Budget |
-|----------|--------|--------|
-| Batch create companies | 200 | &lt; 20s |
-| Paginated company list | after 200 | &lt; 3s |
-| Company name search | after 200 | &lt; 3s |
-| Application search | 100 apps | &lt; 3s |
 
-These are **regression fences**, not load-test SLAs. Tighten or loosen in `ScalabilityPerformanceIT` when hardware or CI class changes.
+| Scenario | Volume | Budget | Example measured |
+|----------|--------|--------|------------------|
+| Batch create companies | 200 | &lt; 20s | ~1.5s |
+| Company list page 50 | after 200 | &lt; 3s | ~2–5ms |
+| Company name search | after 200 | &lt; 3s | ~7–10ms |
+| Deep page (page 3) | after 200 | &lt; 3s | ~5–7ms |
+| Page-size clamp | — | ≤100 rows | ~3ms |
+| Application search | 100 apps | &lt; 3s | ~28–34ms |
+| Upcoming rounds | 80 rounds | &lt; 2s | ~11–15ms |
+| Dashboard cold / warm | 40 apps | &lt; 2s / &lt; 500ms | ~30ms / ~13ms |
+| Cascade soft-delete tree | 25 apps+rounds | &lt; 5s | ~0.4s |
+| Idempotency replay ×25 | vs fresh ×25 | replay &lt; fresh | ~79ms vs ~206ms |
+| Concurrent list 8×40 | wall clock | &lt; 8s | ~0.2s |
+
+Logged as `PERF_METRIC` lines from `ScalabilityPerformanceIT`. These are **regression fences**, not load-test SLAs.
 
 ---
 

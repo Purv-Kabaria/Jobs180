@@ -281,7 +281,42 @@ mvn test
 | Unit | Auth, sole-admin, ownership, optimistic lock, idempotency, uploads, filters |
 | Integration | Cascades, Redis idempotency, isolation, session revoke |
 | E2E (MockMvc) | Signup → company → app → round → notes; CSRF; admin gate; MVC login |
-| Performance | List/search budgets under hundreds of rows |
+| Performance | Asserted budgets + logged timings in `ScalabilityPerformanceIT` |
+
+### Performance metrics (asserted + measured)
+
+Budgets are regression fences in Testcontainers (Postgres 16 + Redis 7). **Measured** values are from a local `mvn test -Dtest=ScalabilityPerformanceIT` run on this machine; re-run to refresh.
+
+| Metric | Volume | Budget | Measured |
+|--------|--------|--------|----------|
+| Batch create companies | 200 | &lt; 20 s | ~1.5 s |
+| Company list (page size 50) | after 200 | &lt; 3 s | ~2–5 ms |
+| Company name search | after 200 | &lt; 3 s | ~7–10 ms |
+| Company list deep page (page 3) | after 200 | &lt; 3 s | ~5–7 ms |
+| Page-size clamp (`size=10000` → ≤100) | 30 | &lt; 3 s | ~3 ms |
+| Application search by company | 100 apps | &lt; 3 s | ~28–34 ms |
+| Upcoming rounds query | 80 rounds | &lt; 2 s | ~11–15 ms |
+| Dashboard status counts (cold) | 40 apps | &lt; 2 s | ~29–38 ms |
+| Dashboard status counts (warm Redis cache) | 40 apps | &lt; 500 ms | ~13–36 ms |
+| Cascade soft-delete (company → apps → rounds) | 25 apps + rounds | &lt; 5 s | ~0.35–0.43 s |
+| Idempotency replay ×25 vs fresh create ×25 | 25 | replay &lt; fresh | ~79 ms vs ~206 ms |
+| Concurrent company list | 8 threads × 40 calls | &lt; 8 s wall | ~0.17–0.21 s |
+
+Source: `src/test/java/com/companytracker/performance/ScalabilityPerformanceIT.java` (logs `PERF_METRIC name=… ms=…`).
+
+### Scalability & speed techniques in use
+
+| Technique | Where it shows up |
+|-----------|-------------------|
+| Partial indexes on active rows | Flyway `V1__schema.sql` (`WHERE deleted_at IS NULL`) for owners, names, schedules, statuses |
+| Pagination + hard page-size clamp | Lists/search cap at 100 rows per request |
+| Redis dashboard cache | `DashboardService.statusCounts` (`@Cacheable`, 60s TTL); evicted on writes |
+| Join-fetch upcoming rounds | Single query with application + company (no N+1) |
+| Redis idempotency | Duplicate creates replay instead of writing again |
+| Stateless app + Redis sessions | Horizontal scale without sticky sessions |
+| S3/MinIO for blobs | App nodes stay disk-light; downloads stream |
+| HikariCP pool | Bounded DB concurrency (`SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE`) |
+| Ownership filter in SQL | Non-admins never scan other users’ rows for list/search |
 
 ---
 
