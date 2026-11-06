@@ -156,6 +156,9 @@ Header: `Idempotency-Key: <client-uuid>`
 | Retry same key + same payload hash | Replay; no duplicate side effects |
 | Same key + different payload | `409 IDEMPOTENCY_CONFLICT` |
 | Parallel in-flight same key | Lock; wait or `IDEMPOTENCY_IN_FLIGHT` |
+| First request's transaction rolls back | No record is stored; a retry runs again |
+
+The record is written only after the database transaction commits, so a replay never returns an id whose row is not visible yet. The payload hash is computed over JSON with sorted keys, so it is the same on every replica.
 
 **Why require clients to send keys instead of server-only dedupe?**  
 Only the client knows which HTTP attempts are “the same user intent.”

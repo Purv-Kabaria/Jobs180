@@ -146,3 +146,46 @@ Architecture Decision Records in compact form. Each entry states context, option
 ## D18 — Non-goals v1
 
 Explicitly deferred: OAuth, email verify/reset, sharing, AV scanning, GraphQL, microservices, billing.
+
+---
+
+## D19 — Atomic rate-limit windows
+
+**Context:** The first limiter did `INCR` then `EXPIRE` as two round trips. A crash between them leaves a counter with no TTL, and that client stays locked out forever.  
+**Options:** (A) One Lua script: INCR, set TTL only when new, return count + remaining TTL (B) `MULTI`/`EXEC` (C) Redis 7 `INCR` + `EXPIRE ... NX` pipelined.  
+**Decision:** A.  
+**Consequences:** Atomic on the Redis side, one round trip, and `Retry-After` is the real time left in the window instead of a fixed 60. Still a fixed window, so up to 2x the limit can pass across a boundary; accepted because the goal is stopping brute force, not metering.
+
+---
+
+## D20 — Which IP to rate-limit
+
+**Context:** Reading `X-Forwarded-For` directly lets any client send a fake IP per request and walk around per-IP limits.  
+**Options:** (A) `server.forward-headers-strategy=native`: Tomcat honours the header only when the direct peer is a trusted internal proxy (B) Trust the header from everyone (C) Ignore proxies entirely.  
+**Decision:** A.  
+**Consequences:** Behind a reverse proxy on a private network the real client IP is used; direct callers cannot spoof it. Add the proxy range to `server.tomcat.remoteip.internal-proxies` if it is not a private address.
+
+---
+
+## D21 — Rate limiter when Redis is down
+
+**Options:** (A) Fail open and log a warning (B) Fail closed (429 everything).  
+**Decision:** A.  
+**Consequences:** A Redis blip does not turn into a full outage from the limiter alone. Sessions still need Redis, so readiness still reports Redis down; the limiter just does not add a second failure mode.
+
+---
+
+## D22 — When the idempotency record is written
+
+**Context:** Creates run inside `@Transactional` service methods. Writing the Redis record before commit let a concurrent retry replay an id whose row was not committed yet (false 404), and left a record pointing at nothing if the transaction rolled back.  
+**Options:** (A) Write the record and release the lock in `afterCompletion`, only on commit (B) Store keys in a Postgres table in the same transaction (C) Leave it.  
+**Decision:** A.  
+**Consequences:** Replays only ever see committed rows; rollbacks leave no record, so a retry runs again. The remaining gap is a process crash after commit and before the Redis write (milliseconds). B closes it fully and is the upgrade path if that gap ever matters.
+
+---
+
+## D23 — Lock ownership and payload fingerprint
+
+**Context:** (1) Releasing the in-flight lock with a plain `DEL` could delete another request's lock if the first one outlived the 30 s TTL. (2) Payload hashes came from `Map.of(...)` JSON, whose key order is randomised per JVM, so the same retry could hash differently on another replica.  
+**Decision:** Lock value is a random token released by a compare-and-delete Lua script; payloads are hashed with map keys sorted.  
+**Consequences:** A request can only release its own lock, and honest retries match on any replica.

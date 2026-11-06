@@ -190,7 +190,7 @@ Authz-sensitive pages cached wrong → data leaks. Aggregates keyed by user are 
 
 **Concept:** performing an operation once or N times yields the same effect.
 
-**In Jobs180:** `Idempotency-Key` + payload hash in Redis; in-flight lock.
+**In Jobs180:** `Idempotency-Key` + payload hash in Redis; in-flight lock owned by a random token; record stored after commit (see DECISIONS D22, D23).
 
 | Approach | Verdict |
 |----------|---------|
@@ -204,7 +204,7 @@ Authz-sensitive pages cached wrong → data leaks. Aggregates keyed by user are 
 
 **Concept:** admission control against abuse.
 
-**In Jobs180:** Redis fixed-window counters.
+**In Jobs180:** Redis fixed-window counters, updated by one atomic Lua script that also returns the exact `Retry-After` (DECISIONS D19-D21).
 
 | Algorithm | Note |
 |-----------|------|

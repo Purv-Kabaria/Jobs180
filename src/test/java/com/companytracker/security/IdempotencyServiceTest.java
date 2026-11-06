@@ -11,8 +11,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -46,7 +49,7 @@ class IdempotencyServiceTest {
     void executesWhenNoExistingRecord() {
         AtomicInteger calls = new AtomicInteger();
         when(valueOps.get(anyString())).thenReturn(null);
-        when(valueOps.setIfAbsent(anyString(), eq("1"), any())).thenReturn(true);
+        when(valueOps.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
 
         Map<?, ?> result = service.execute("user:1", "key-1", Map.of("a", 1), () -> {
             calls.incrementAndGet();
@@ -89,5 +92,57 @@ class IdempotencyServiceTest {
 
         assertEquals(0, calls.get());
         assertEquals(10, ((Number) result.get("id")).intValue());
+    }
+
+    @Test
+    void releasesOnlyItsOwnLockToken() {
+        when(valueOps.get(anyString())).thenReturn(null);
+        ArgumentCaptor<String> token = ArgumentCaptor.forClass(String.class);
+        when(valueOps.setIfAbsent(anyString(), token.capture(), any())).thenReturn(true);
+
+        service.execute("user:1", "key-2", Map.of("a", 1), () -> Map.of("id", 5L));
+
+        verify(redisTemplate).execute(
+                eq(IdempotencyService.RELEASE_LOCK),
+                eq(List.of("ct:idem:lock:user:1:key-2")),
+                eq(token.getValue()));
+    }
+
+    @Test
+    void releasesLockEvenWhenActionFails() {
+        when(valueOps.get(anyString())).thenReturn(null);
+        when(valueOps.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
+
+        assertThrows(IllegalStateException.class, () ->
+                service.execute("user:1", "key-3", Map.of("a", 1), () -> {
+                    throw new IllegalStateException("db down");
+                }));
+
+        verify(redisTemplate).execute(eq(IdempotencyService.RELEASE_LOCK), eq(List.of("ct:idem:lock:user:1:key-3")), anyString());
+    }
+
+    @Test
+    void payloadHashIgnoresMapKeyOrder() {
+        AtomicInteger calls = new AtomicInteger();
+        java.util.Map<String, Object> ab = new java.util.LinkedHashMap<>();
+        ab.put("a", 1);
+        ab.put("b", 2);
+        java.util.Map<String, Object> ba = new java.util.LinkedHashMap<>();
+        ba.put("b", 2);
+        ba.put("a", 1);
+
+        when(valueOps.get(anyString())).thenReturn(null);
+        when(valueOps.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
+        ArgumentCaptor<String> stored = ArgumentCaptor.forClass(String.class);
+        service.execute("user:1", "key-4", ab, () -> Map.of("id", 7L));
+        verify(valueOps).set(anyString(), stored.capture(), any());
+
+        when(valueOps.get(anyString())).thenReturn(stored.getValue());
+        Map<?, ?> replay = service.execute("user:1", "key-4", ba, () -> {
+            calls.incrementAndGet();
+            return Map.of("id", 8L);
+        });
+        assertEquals(0, calls.get());
+        assertEquals(7L, ((Number) replay.get("id")).longValue());
     }
 }

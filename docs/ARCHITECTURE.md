@@ -84,7 +84,7 @@ We *do* use a port for storage (`StoragePort`) because backends truly swap (MinI
 ## 4. Request lifecycle (happy path)
 
 1. Load balancer → any app replica (no sticky session required).
-2. `RateLimitFilter` — Redis INCR windows.
+2. `RateLimitFilter` — atomic Redis fixed windows (one Lua call per check), fails open if Redis is down.
 3. Spring Security — session resolution from Redis, CSRF (when applicable), authz matchers.
 4. `SecurityStampFilter` — compare session principal stamp to DB; revoke if stale.
 5. Controller — bind form/JSON; call service with idempotency key when present.

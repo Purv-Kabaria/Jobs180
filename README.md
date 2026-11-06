@@ -1,5 +1,7 @@
 # Jobs180
 
+[![ci](https://github.com/Purv-Kabaria/Jobs180/actions/workflows/ci.yml/badge.svg)](https://github.com/Purv-Kabaria/Jobs180/actions/workflows/ci.yml)
+
 **Jobs180** is a self-hostable job application tracker for companies, roles, interview rounds, resumes, notes, and prep resources.
 
 It is a single **Spring Boot** app with a **Thymeleaf** UI and a versioned JSON API (`/api/v1`), backed by **PostgreSQL**, **Redis**, and **MinIO** (S3-compatible object storage).
@@ -263,7 +265,22 @@ Ops: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 | Admin disables a logged-in user | Sessions revoked |
 | Double-submit create | Idempotency key returns the same result |
 | Login brute force | 429 after rate-limit threshold |
-| Redis down | Readiness fails; do not fall back to local sessions in prod |
+| Redis down | Readiness fails; do not fall back to local sessions in prod. The rate limiter itself fails open and logs |
+| Retry races the first request | Replay waits for the first transaction to commit; never sees an uncommitted id |
+| Client spoofs `X-Forwarded-For` | Ignored unless the direct peer is a trusted proxy |
+
+### Correctness details worth knowing
+
+These are the non-obvious parts of the design; each has a decision record and a test.
+
+| Problem | Fix | Where |
+|---------|-----|-------|
+| `INCR` then `EXPIRE` can leave a counter with no TTL if the app dies in between | One Lua script does both and returns the remaining TTL for `Retry-After` | `RateLimitFilter`, DECISIONS D19 |
+| A client could fake its IP with `X-Forwarded-For` | `forward-headers-strategy: native`, header trusted only from internal proxies | `application.yml`, D20 |
+| Idempotency record written before commit could replay a row that is not visible yet | Record stored and lock released in `afterCompletion`, only on commit | `IdempotencyService`, D22 |
+| Plain `DEL` could release another request's lock | Random lock token + compare-and-delete script | `IdempotencyService`, D23 |
+| Same body hashed differently on another replica | Payload JSON hashed with sorted keys | `IdempotencyService`, D23 |
+| Ten clients retry the same create at once | Exactly one company is created | `IdempotencyIT.concurrentRetriesWithSameKeyCreateExactlyOneCompany` |
 
 ---
 
