@@ -4,10 +4,12 @@ import com.companytracker.support.AbstractIntegrationTest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -33,6 +35,16 @@ class ApiFullFlowE2ETest extends AbstractIntegrationTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
+    @Autowired JdbcTemplate jdbcTemplate;
+
+    /**
+     * The first signup on a fresh install becomes admin. Other non-transactional tests commit
+     * users to the shared container, so start from an empty database like a real first install.
+     */
+    @BeforeEach
+    void freshInstall() {
+        jdbcTemplate.execute("TRUNCATE TABLE users CASCADE");
+    }
 
     @Test
     void signupLoginCompanyApplicationRoundNotesIsolationAndAdminGate() throws Exception {

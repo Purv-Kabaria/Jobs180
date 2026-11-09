@@ -15,6 +15,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 import java.util.UUID;
@@ -28,6 +30,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Runs without the test-managed transaction. The idempotency record and lock release happen
+ * after commit, so a test transaction that only rolls back at the end would hide exactly the
+ * behaviour under test: each create here commits, as it does behind the real API.
+ */
+@Transactional(propagation = Propagation.NOT_SUPPORTED)
 class IdempotencyIT extends AbstractIntegrationTest {
 
     @Autowired UserAccountRepository userAccountRepository;
@@ -38,7 +46,7 @@ class IdempotencyIT extends AbstractIntegrationTest {
     @Test
     void sameKeySamePayloadReplaysSameCompany() {
         UserAccount user = TestDataFactory.persistUser(
-                userAccountRepository, passwordEncoder, "idem@test.com", "password123", UserRole.USER);
+                userAccountRepository, passwordEncoder, "idem-" + UUID.randomUUID() + "@test.com", "password123", UserRole.USER);
         authenticate(user);
         String key = "create-co-" + UUID.randomUUID();
 
@@ -52,7 +60,7 @@ class IdempotencyIT extends AbstractIntegrationTest {
     @Test
     void sameKeyDifferentPayloadConflicts() {
         UserAccount user = TestDataFactory.persistUser(
-                userAccountRepository, passwordEncoder, "idem2@test.com", "password123", UserRole.USER);
+                userAccountRepository, passwordEncoder, "idem2-" + UUID.randomUUID() + "@test.com", "password123", UserRole.USER);
         authenticate(user);
         String key = "create-co-conflict-" + UUID.randomUUID();
 
@@ -71,7 +79,7 @@ class IdempotencyIT extends AbstractIntegrationTest {
     @Test
     void concurrentRetriesWithSameKeyCreateExactlyOneCompany() throws Exception {
         UserAccount user = TestDataFactory.persistUser(
-                userAccountRepository, passwordEncoder, "idem3@test.com", "password123", UserRole.USER);
+                userAccountRepository, passwordEncoder, "idem3-" + UUID.randomUUID() + "@test.com", "password123", UserRole.USER);
         String key = "create-co-race-" + UUID.randomUUID();
         int clients = 10;
         ExecutorService pool = Executors.newFixedThreadPool(clients);
