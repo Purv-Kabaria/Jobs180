@@ -302,7 +302,7 @@ mvn test
 
 ### Performance metrics (asserted + measured)
 
-Budgets are regression fences in Testcontainers (Postgres 16 + Redis 7). **Measured** values are from a local `mvn test -Dtest=ScalabilityPerformanceIT` run on this machine; re-run to refresh.
+Budgets are regression fences in Testcontainers (Postgres 16 + Redis 7). **Measured** values are from a local `mvn test -Dtest=ScalabilityPerformanceIT` run on this machine; re-run to refresh. CI runs every other test on each push but skips this class, because shared runners are too noisy for timing budgets.
 
 | Metric | Volume | Budget | Measured |
 |--------|--------|--------|----------|
